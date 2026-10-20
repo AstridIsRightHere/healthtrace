@@ -135,3 +135,6 @@ backup-*.sql
 *.rej
 backup/
 backups/
+
+# Local raw source material (never commit)
+raw/

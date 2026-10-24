@@ -4,9 +4,9 @@
 
 ## 当前阶段
 
-本项目处于**前期文档阶段**，目前包含 31 份编号文档（00～29、31）及文档索引，覆盖需求、设计、工程规划和论文草稿。第二阶段文档已通过评审；尚未编码、执行产品测试或部署，无已实现功能或实验结果可供声明。
+本项目已进入**编码阶段**（2026-10-24 起），目前仅完成前后端**工程骨架**，尚无业务功能、产品测试或部署，无已实现功能或实验结果可供声明。31 份编号文档（00～29、31）及文档索引覆盖需求、设计、工程规划和论文草稿，第二阶段文档已通过评审。
 
-docs/ 下的部分文档写于 Git 初始化之前，其中“尚未初始化 Git”等描述保留为编写时的历史状态；当前本地仓库已初始化，详见本 README 的“当前阶段”一节。进入编码阶段仍需项目发起人明确授权。
+docs/ 下的部分文档写于 Git 初始化或编码授权之前，其中“尚未初始化 Git”“不创建工程”等描述保留为编写时的历史状态。
 
 ## 目录结构
 
@@ -15,10 +15,44 @@ healthtrace/
 ├── docs/
 │   ├── README.md            # 前期文档索引及建议阅读顺序
 │   └── 00～29、31 编号文档  # 31 份 Markdown 文档，文件名以索引为准
+├── frontend/                # Vue 3.5 + TypeScript 6.0 + Vite 8 + Pinia 4 + Vue Router 5 + ECharts 6.1
+├── backend/                 # Spring Boot 3.5 模块化单体（account/report/indicator/visit/rights）
+├── docker-compose.yml       # 本地 MySQL 8.4 LTS
+├── .env.example             # 环境变量名清单（不含真实值）
 ├── .gitignore
 ├── README.md               # 仓库首页
 └── LICENSE                 # MIT 许可证
 ```
+
+## 本地启动
+
+环境要求：JDK 21、Maven 3.9+、Node.js 22.18+（当前部分依赖要求 `^22.18.0 || >=24.11.0`）、Docker Desktop。依赖与缓存放在 D 盘，约定见 [29 环境配置说明](docs/29-环境配置说明.md)。
+
+1. 准备环境变量：复制 `.env.example` 为 `.env`，填写本机自定的值。`.env` 不进入 Git。
+2. 启动 MySQL：
+
+   ```bash
+   docker compose up -d
+   docker compose ps          # 等待 healthy
+   ```
+
+3. 启动后端（变量缺失时会直接启动失败，这是预期行为）：
+
+   ```bash
+   cd backend
+   # 需在当前 shell 中导出 SPRING_PROFILES_ACTIVE=dev、DB_URL、DB_USERNAME、DB_PASSWORD
+   mvn spring-boot:run
+   ```
+
+4. 启动前端：
+
+   ```bash
+   cd frontend
+   npm install
+   npm run dev
+   ```
+
+构建验证：`frontend` 下 `npm run build`；`backend` 下 `mvn -DskipTests package`。
 
 ## 文档导航
 
@@ -37,14 +71,14 @@ healthtrace/
 
 ## 技术栈
 
-以下为规划基线和建议，尚未创建应用工程或锁定精确版本。
+以下版本按 DEC-012（2026-10-24 升级确认）锁定，工程骨架已创建，业务功能尚未实现。
 
 | 层次 | 规划与状态 |
 | --- | --- |
-| 前端 | 已确认 Vue PWA；建议 Vue 3、TypeScript、Vite |
-| 后端 | 已确认 Spring Boot；建议模块化单体，JDK 与 Spring Boot 版本组合待定 |
-| 数据库 | 已确认 MySQL；具体受支持版本待定 |
-| 图表与数据访问 | 建议 ECharts；MyBatis 为候选，待评审确认 |
+| 前端 | Vue 3.5.44、TypeScript 6.0.3（strict）、Vite 8.3.5、Pinia 4.1.0、Vue Router 5.4.0；PWA 插件待引入 |
+| 后端 | JDK 21 LTS、Spring Boot 3.5.16 模块化单体 |
+| 数据库 | MySQL 8.4 LTS；Flyway 11.7.2（Boot 管理） |
+| 图表与数据访问 | ECharts 6.1.0；MyBatis 3.5.19（Starter 3.0.5） |
 | OCR 与文件存储 | 计划采用可替换 OCR 适配器及私有对象存储，供应商与处理条款待定；OCR 结果需人工逐项确认 |
 | 交付 | 规划使用 GitHub Actions，初期人工批准发布；部署方式待定 |
 

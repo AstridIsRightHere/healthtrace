@@ -82,6 +82,8 @@ temp/
 # Environment files
 .env
 .env.*
+# 模板文件只含变量名，需要提交
+!.env.example
 
 # Credentials / keys / sensitive filenames
 .ssh/

@@ -1,0 +1,26 @@
+# 公共配置（DEC-025 Spring Profiles）。环境差异放在 application-{profile}.yml。
+# 数据库连接只从环境变量注入，不设默认值：缺失时启动失败，不静默回退（29-环境配置说明）。
+spring:
+  application:
+    name: healthtrace
+  profiles:
+    active: ${SPRING_PROFILES_ACTIVE}
+  datasource:
+    url: ${DB_URL}
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    # ADR-009：已执行的迁移不原地修改，纠错追加新版本
+    validate-on-migrate: true
+    clean-disabled: true
+
+mybatis:
+  mapper-locations: classpath:mapper/**/*.xml
+  configuration:
+    map-underscore-to-camel-case: true
+
+server:
+  port: 8080

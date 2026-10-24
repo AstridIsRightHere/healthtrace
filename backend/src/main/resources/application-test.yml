@@ -1,0 +1,4 @@
+# 测试环境：独立数据库与密钥，不与开发/生产共享（29-环境配置说明）。
+logging:
+  level:
+    com.healthtrace: info

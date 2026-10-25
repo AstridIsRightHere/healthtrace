@@ -7,6 +7,7 @@ import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 
 import java.util.List;
 
@@ -36,6 +37,13 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(HttpMessageNotReadableException.class)
     public ResponseEntity<ErrorResponse> handleUnreadable(HttpMessageNotReadableException ex) {
+        ErrorCode code = ErrorCode.MALFORMED_REQUEST;
+        return ResponseEntity.status(code.status()).body(ErrorResponse.of(code));
+    }
+
+    /** 路径/查询参数类型不符（如 profileId 非数字）：按请求格式无效处理，而不是 500。 */
+    @ExceptionHandler(MethodArgumentTypeMismatchException.class)
+    public ResponseEntity<ErrorResponse> handleTypeMismatch(MethodArgumentTypeMismatchException ex) {
         ErrorCode code = ErrorCode.MALFORMED_REQUEST;
         return ResponseEntity.status(code.status()).body(ErrorResponse.of(code));
     }

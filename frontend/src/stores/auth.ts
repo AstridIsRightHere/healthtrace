@@ -2,6 +2,7 @@ import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
 import { accountApi, type AccountView, type LoginPayload } from '../api/account'
 import { resetCsrfToken } from '../api'
+import { useProfileStore } from './profile'
 
 /**
  * 登录用户状态。只在内存中保存展示所需的账号信息，不持久化（ADR-010）；
@@ -17,6 +18,8 @@ export const useAuthStore = defineStore('auth', () => {
 
   async function login(payload: LoginPayload): Promise<void> {
     await accountApi.login(payload)
+    // 可能切换了账号：丢弃上一个账号的档案缓存，由路由守卫重新获取
+    useProfileStore().reset()
     // 后端登录时轮换会话并作废匿名阶段的 CSRF 令牌
     resetCsrfToken()
     user.value = await accountApi.me()
@@ -53,6 +56,7 @@ export const useAuthStore = defineStore('auth', () => {
     user.value = null
     sessionChecked.value = true
     resetCsrfToken()
+    useProfileStore().reset()
   }
 
   return { user, isAuthenticated, login, restoreSession, logout, clear }

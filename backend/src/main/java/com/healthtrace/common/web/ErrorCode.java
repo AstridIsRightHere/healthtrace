@@ -19,6 +19,9 @@ public enum ErrorCode {
     /** 邀请码、验证/重置令牌无效或过期：统一说明，不透露具体原因（docs/08）。 */
     INVALID_CREDENTIAL(HttpStatus.BAD_REQUEST, "HT-2006", "链接或凭据无效或已过期", false),
 
+    /** 档案不存在或当前账号无有效授权：统一 404，不泄露档案是否存在。 */
+    PROFILE_NOT_FOUND(HttpStatus.NOT_FOUND, "HT-3001", "档案不存在", false),
+
     TOO_MANY_REQUESTS(HttpStatus.TOO_MANY_REQUESTS, "HT-5001", "尝试次数过多，请稍后再试", true),
 
     INTERNAL_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "HT-9001", "内部处理失败，请稍后重试", true);

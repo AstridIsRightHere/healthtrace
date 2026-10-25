@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.healthtrace.account.mapper.AccountMapper">
+
+    <sql id="columns">
+        id, email_ciphertext, email_index, password_hash, email_verified_at, status, closed_at,
+        failed_login_count, locked_until, created_at, updated_at
+    </sql>
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id" keyColumn="id">
+        INSERT INTO account (email_ciphertext, email_index, password_hash, email_verified_at, status, closed_at,
+                             failed_login_count, locked_until, created_at, updated_at)
+        VALUES (#{emailCiphertext}, #{emailIndex}, #{passwordHash}, #{emailVerifiedAt}, #{status}, #{closedAt},
+                #{failedLoginCount}, #{lockedUntil}, #{createdAt}, #{updatedAt})
+    </insert>
+
+    <select id="findById" resultType="com.healthtrace.account.domain.Account">
+        SELECT <include refid="columns"/> FROM account WHERE id = #{id}
+    </select>
+
+    <select id="findByEmailIndex" resultType="com.healthtrace.account.domain.Account">
+        SELECT <include refid="columns"/> FROM account WHERE email_index = #{emailIndex}
+    </select>
+
+    <update id="markEmailVerified">
+        UPDATE account
+        SET email_verified_at = #{verifiedAt}, status = #{toStatus}, updated_at = #{verifiedAt}
+        WHERE id = #{id} AND status = #{fromStatus}
+    </update>
+
+    <!-- 重置密码同时解除登录锁定 -->
+    <update id="updatePasswordHash">
+        UPDATE account
+        SET password_hash = #{passwordHash}, failed_login_count = 0, locked_until = NULL, updated_at = #{updatedAt}
+        WHERE id = #{id}
+    </update>
+
+    <update id="updateLoginFailure">
+        UPDATE account
+        SET failed_login_count = #{failedLoginCount}, locked_until = #{lockedUntil}, updated_at = #{updatedAt}
+        WHERE id = #{id}
+    </update>
+
+    <update id="resetLoginFailures">
+        UPDATE account
+        SET failed_login_count = 0, locked_until = NULL, updated_at = #{updatedAt}
+        WHERE id = #{id} AND (failed_login_count &lt;&gt; 0 OR locked_until IS NOT NULL)
+    </update>
+</mapper>

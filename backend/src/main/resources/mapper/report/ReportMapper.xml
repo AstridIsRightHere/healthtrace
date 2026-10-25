@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.healthtrace.report.mapper.ReportMapper">
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id" keyColumn="id">
+        INSERT INTO report (profile_id, created_by, title, report_type, examination_date, processing_status,
+                            visibility_status, confirmed_by, confirmed_at, version, source_hospital_text,
+                            created_at, updated_at)
+        VALUES (#{profileId}, #{createdBy}, #{title}, #{reportType}, #{examinationDate}, #{processingStatus},
+                #{visibilityStatus}, #{confirmedBy}, #{confirmedAt}, #{version}, #{sourceHospitalText},
+                #{createdAt}, #{updatedAt})
+    </insert>
+
+    <select id="findById" resultType="com.healthtrace.report.domain.Report">
+        SELECT id, profile_id, created_by, title, report_type, examination_date, processing_status,
+               visibility_status, confirmed_by, confirmed_at, version, source_hospital_text, created_at, updated_at
+        FROM report WHERE id = #{id}
+    </select>
+
+    <select id="findPendingByProfile" resultType="com.healthtrace.report.domain.ReportSummary">
+        SELECT r.id, r.title, r.report_type, r.examination_date, r.processing_status, r.created_at,
+               (SELECT COUNT(*) FROM photo p
+                WHERE p.report_id = r.id AND p.storage_status = 'COMPLETE') AS photo_count,
+               c.id AS cover_photo_id,
+               (c.preview_object_key IS NOT NULL) AS cover_has_preview
+        FROM report r
+        LEFT JOIN photo c ON c.id = (
+            SELECT p2.id FROM photo p2
+            WHERE p2.report_id = r.id AND p2.storage_status = 'COMPLETE'
+            ORDER BY p2.page_order, p2.id LIMIT 1)
+        WHERE r.profile_id = #{profileId}
+          AND r.visibility_status = 'NORMAL'
+          AND r.processing_status &lt;&gt; 'CONFIRMED'
+        ORDER BY r.created_at DESC, r.id DESC
+    </select>
+</mapper>

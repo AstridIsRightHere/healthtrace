@@ -10,6 +10,11 @@ spring:
     username: ${DB_USERNAME}
     password: ${DB_PASSWORD}
     driver-class-name: com.mysql.cj.jdbc.Driver
+  servlet:
+    multipart:
+      # DEC-008：单文件 25 MiB；一次请求原件 + 预览图，合计上限 52 MB
+      max-file-size: 25MB
+      max-request-size: 52MB
   flyway:
     enabled: true
     locations: classpath:db/migration
@@ -39,3 +44,8 @@ healthtrace:
   security:
     email-encryption-key: ${HT_EMAIL_ENCRYPTION_KEY}
     email-index-key: ${HT_EMAIL_INDEX_KEY}
+  # 原图存储：local 仅用于开发/测试；根目录只从环境变量注入，缺失时启动失败
+  storage:
+    type: ${HT_STORAGE_TYPE:local}
+    local:
+      root: ${HT_STORAGE_LOCAL_ROOT}

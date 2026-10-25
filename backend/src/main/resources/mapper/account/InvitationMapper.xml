@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.healthtrace.account.mapper.InvitationMapper">
+
+    <select id="findByTokenDigest" resultType="com.healthtrace.account.domain.Invitation">
+        SELECT id, issuer_account_id, token_digest, expires_at, used_at, used_by, created_at, updated_at
+        FROM invitation WHERE token_digest = #{tokenDigest}
+    </select>
+
+    <update id="markUsed">
+        UPDATE invitation
+        SET used_at = #{now}, used_by = #{usedBy}, updated_at = #{now}
+        WHERE id = #{id}
+          AND used_at IS NULL
+          AND (expires_at IS NULL OR expires_at &gt; #{now})
+    </update>
+</mapper>

@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.healthtrace.account.mapper.AuthTokenMapper">
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id" keyColumn="id">
+        INSERT INTO auth_token (account_id, purpose, token_digest, expires_at, consumed_at, created_at, updated_at)
+        VALUES (#{accountId}, #{purpose}, #{tokenDigest}, #{expiresAt}, #{consumedAt}, #{createdAt}, #{updatedAt})
+    </insert>
+
+    <select id="findByTokenDigest" resultType="com.healthtrace.account.domain.AuthToken">
+        SELECT id, account_id, purpose, token_digest, expires_at, consumed_at, created_at, updated_at
+        FROM auth_token WHERE token_digest = #{tokenDigest}
+    </select>
+
+    <update id="consume">
+        UPDATE auth_token
+        SET consumed_at = #{now}, updated_at = #{now}
+        WHERE id = #{id} AND consumed_at IS NULL AND expires_at &gt; #{now}
+    </update>
+
+    <!-- 作废视为消耗：consumed_at 置为当前时间，令牌之后无法再使用 -->
+    <update id="invalidateOutstanding">
+        UPDATE auth_token
+        SET consumed_at = #{now}, updated_at = #{now}
+        WHERE account_id = #{accountId} AND purpose = #{purpose} AND consumed_at IS NULL
+    </update>
+</mapper>

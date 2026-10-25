@@ -66,4 +66,8 @@
         ORDER BY id
         LIMIT #{limit}
     </select>
+
+    <delete id="deleteByReport">
+        DELETE FROM ocr_job WHERE report_id = #{reportId}
+    </delete>
 </mapper>

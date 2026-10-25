@@ -43,4 +43,8 @@
             updated_at = #{confirmedAt}
         WHERE report_id = #{reportId} AND status = 'DRAFT'
     </update>
+
+    <delete id="deleteByReport">
+        DELETE FROM observation WHERE report_id = #{reportId}
+    </delete>
 </mapper>

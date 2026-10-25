@@ -28,4 +28,7 @@ public interface ObservationMapper {
     int confirmDrafts(@Param("reportId") long reportId,
                       @Param("examinationDate") LocalDate examinationDate,
                       @Param("confirmedAt") LocalDateTime confirmedAt);
+
+    /** 彻底删除未确认报告时清理其全部观测值（此时只可能是草稿）。 */
+    int deleteByReport(@Param("reportId") long reportId);
 }

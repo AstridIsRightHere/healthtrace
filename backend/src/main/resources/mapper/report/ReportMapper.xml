@@ -70,4 +70,9 @@
           AND version = #{expectedVersion}
           AND processing_status = 'PENDING_CONFIRMATION'
     </update>
+
+    <delete id="deleteUnconfirmed">
+        DELETE FROM report
+        WHERE id = #{id} AND processing_status IN ('UPLOADING', 'PENDING_CONFIRMATION', 'FAILED')
+    </delete>
 </mapper>

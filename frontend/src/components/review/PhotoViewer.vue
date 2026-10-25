@@ -72,15 +72,15 @@ defineExpose({ select })
       </div>
 
       <div class="viewer-tools">
-        <a class="btn-link" :href="originalUrl" target="_blank" rel="noopener">在新标签页打开原件</a>
         <button
           v-if="!isPdf && !imageFailed && current.hasPreview"
           type="button"
-          class="btn-link"
+          class="btn-ghost btn-small"
           @click="useOriginal = !useOriginal"
         >
           {{ useOriginal ? '查看压缩预览' : '查看原图（更清晰）' }}
         </button>
+        <a class="text-link" :href="originalUrl" target="_blank" rel="noopener">在新标签页打开原件</a>
       </div>
     </template>
   </section>

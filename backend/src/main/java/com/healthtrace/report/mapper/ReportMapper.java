@@ -46,4 +46,7 @@ public interface ReportMapper {
                 @Param("examinationDate") LocalDate examinationDate,
                 @Param("confirmedBy") long confirmedBy,
                 @Param("confirmedAt") LocalDateTime confirmedAt);
+
+    /** 物理删除未确认（UPLOADING / PENDING_CONFIRMATION / FAILED）的报告；返回 0 表示状态已变化。 */
+    int deleteUnconfirmed(@Param("id") long id);
 }

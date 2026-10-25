@@ -33,4 +33,9 @@ public interface PhotoMapper {
     /** 同档案内内容摘要相同的完整图片所在报告（去重，FR-005 只提示不合并）。 */
     List<Long> findReportIdsByDigest(@Param("profileId") long profileId,
                                      @Param("contentDigest") String contentDigest);
+
+    /** 报告下全部图片（任意存储状态）的对象键，用于彻底删除后清理存储。 */
+    List<Photo> findAllKeysByReport(@Param("reportId") long reportId);
+
+    int deleteByReport(@Param("reportId") long reportId);
 }

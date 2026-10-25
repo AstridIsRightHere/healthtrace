@@ -59,6 +59,7 @@ public class ReviewService {
     static final int UNIT_MAX = 80;
     static final int REFERENCE_MAX = 160;
     static final int MAX_OBSERVATIONS = 200;
+    static final String NO_COMPLETE_PHOTO = "报告还没有上传完成的照片";
 
     private static final Set<ProcessingStatus> SUBMITTABLE =
             EnumSet.of(ProcessingStatus.UPLOADING, ProcessingStatus.FAILED);
@@ -112,7 +113,7 @@ public class ReviewService {
             throw new ApiException(ErrorCode.REPORT_STATE_CONFLICT);
         }
         if (photoMapper.findCompleteByReport(reportId).isEmpty()) {
-            throw new ApiException(ErrorCode.REPORT_STATE_CONFLICT, "报告还没有上传完成的照片");
+            throw new ApiException(ErrorCode.REPORT_STATE_CONFLICT, NO_COMPLETE_PHOTO);
         }
 
         LocalDateTime now = now();
@@ -150,6 +151,10 @@ public class ReviewService {
         if (report.getProcessingStatus() != ProcessingStatus.PENDING_CONFIRMATION) {
             if (!SUBMITTABLE.contains(report.getProcessingStatus())) {
                 throw new ApiException(ErrorCode.REPORT_STATE_CONFLICT);
+            }
+            // 与识别一致：没有任何上传完成的照片时不允许进入录入，避免产生无原图可对照的空报告
+            if (photoMapper.findCompleteByReport(reportId).isEmpty()) {
+                throw new ApiException(ErrorCode.REPORT_STATE_CONFLICT, NO_COMPLETE_PHOTO);
             }
             reportMapper.transitionStatus(reportId, SUBMITTABLE, ProcessingStatus.PENDING_CONFIRMATION, now());
             report.setProcessingStatus(ProcessingStatus.PENDING_CONFIRMATION);

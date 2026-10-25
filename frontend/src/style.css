@@ -198,6 +198,57 @@ input[aria-invalid='true'] {
   margin-top: 20px;
 }
 
+/* 温和的次级按钮：浅色底、灰色文字、无边框、圆角 */
+.btn-ghost {
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  padding: 10px 18px;
+  font: inherit;
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--muted);
+  background: var(--bg);
+  border: none;
+  border-radius: 12px;
+  cursor: pointer;
+  text-decoration: none;
+  transition: background-color 0.2s, color 0.2s;
+}
+
+.btn-ghost:hover:not(:disabled) {
+  color: var(--text-h);
+  background: var(--accent-soft);
+}
+
+.btn-ghost:focus-visible,
+.text-link:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.btn-ghost:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.btn-block {
+  width: 100%;
+  margin-top: 12px;
+}
+
+/* 低干扰文字链接：小字号、灰色、下划线 */
+.text-link {
+  font-size: 13px;
+  color: var(--muted);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.text-link:hover {
+  color: var(--text);
+}
+
 .notice + .subtitle {
   margin-top: 12px;
   margin-bottom: 0;
@@ -622,6 +673,7 @@ legend {
 .viewer-tools {
   display: flex;
   flex-wrap: wrap;
+  align-items: center;
   gap: 12px;
 }
 

@@ -49,3 +49,9 @@ healthtrace:
     type: ${HT_STORAGE_TYPE:local}
     local:
       root: ${HT_STORAGE_LOCAL_ROOT}
+  # OCR（ADR-004）：原文加密密钥与百度凭据只从环境变量注入，任一缺失时启动失败；日志不得输出凭据
+  ocr:
+    encryption-key: ${HT_OCR_ENCRYPTION_KEY}
+    baidu:
+      api-key: ${HT_BAIDU_OCR_API_KEY}
+      secret-key: ${HT_BAIDU_OCR_SECRET_KEY}

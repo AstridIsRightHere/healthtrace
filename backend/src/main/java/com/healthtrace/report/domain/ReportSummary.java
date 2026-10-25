@@ -15,6 +15,8 @@ public class ReportSummary {
     private int photoCount;
     private Long coverPhotoId;
     private boolean coverHasPreview;
+    /** 最近一次 OCR 任务的错误码（无任务或成功为 null），供待处理列表提示失败（FR-015）。 */
+    private String lastOcrErrorCode;
 
     public Long getId() {
         return id;
@@ -86,5 +88,13 @@ public class ReportSummary {
 
     public void setCoverHasPreview(boolean coverHasPreview) {
         this.coverHasPreview = coverHasPreview;
+    }
+
+    public String getLastOcrErrorCode() {
+        return lastOcrErrorCode;
+    }
+
+    public void setLastOcrErrorCode(String lastOcrErrorCode) {
+        this.lastOcrErrorCode = lastOcrErrorCode;
     }
 }

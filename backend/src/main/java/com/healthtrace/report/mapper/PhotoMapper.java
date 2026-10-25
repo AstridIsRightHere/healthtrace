@@ -27,6 +27,9 @@ public interface PhotoMapper {
     /** 该账号上传的、仍占用空间的原件 + 预览图字节合计。 */
     long sumActiveBytesByAccount(@Param("accountId") long accountId);
 
+    /** 报告内全部完整图片，按页序。 */
+    List<Photo> findCompleteByReport(@Param("reportId") long reportId);
+
     /** 同档案内内容摘要相同的完整图片所在报告（去重，FR-005 只提示不合并）。 */
     List<Long> findReportIdsByDigest(@Param("profileId") long profileId,
                                      @Param("contentDigest") String contentDigest);

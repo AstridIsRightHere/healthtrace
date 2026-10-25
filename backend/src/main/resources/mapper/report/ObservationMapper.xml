@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.healthtrace.report.mapper.ObservationMapper">
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id" keyColumn="id">
+        INSERT INTO observation (report_id, original_name, original_value, result_kind, numeric_value, unit_text,
+                                 reference_text, reference_low, reference_high, abnormal_flag, examination_date,
+                                 confidence, confirmed_at, source_photo_id, status, row_order, created_at, updated_at)
+        VALUES (#{reportId}, #{originalName}, #{originalValue}, #{resultKind}, #{numericValue}, #{unitText},
+                #{referenceText}, #{referenceLow}, #{referenceHigh}, #{abnormalFlag}, #{examinationDate},
+                #{confidence}, #{confirmedAt}, #{sourcePhotoId}, #{status}, #{rowOrder}, #{createdAt}, #{updatedAt})
+    </insert>
+
+    <select id="findByReport" resultType="com.healthtrace.report.domain.Observation">
+        SELECT id, report_id, original_name, original_value, result_kind, numeric_value, unit_text, reference_text,
+               reference_low, reference_high, abnormal_flag, examination_date, confidence, confirmed_at,
+               source_photo_id, status, row_order, created_at, updated_at
+        FROM observation
+        WHERE report_id = #{reportId} AND status = #{status}
+        ORDER BY row_order, id
+    </select>
+
+    <update id="updateDraft">
+        UPDATE observation
+        SET original_name = #{originalName}, original_value = #{originalValue}, result_kind = #{resultKind},
+            numeric_value = #{numericValue}, unit_text = #{unitText}, reference_text = #{referenceText},
+            reference_low = #{referenceLow}, reference_high = #{referenceHigh}, abnormal_flag = #{abnormalFlag},
+            confidence = #{confidence}, row_order = #{rowOrder}, updated_at = #{updatedAt}
+        WHERE id = #{id} AND report_id = #{reportId} AND status = 'DRAFT'
+    </update>
+
+    <delete id="deleteDraftById">
+        DELETE FROM observation WHERE id = #{id} AND report_id = #{reportId} AND status = 'DRAFT'
+    </delete>
+
+    <delete id="deleteDrafts">
+        DELETE FROM observation WHERE report_id = #{reportId} AND status = 'DRAFT'
+    </delete>
+
+    <update id="confirmDrafts">
+        UPDATE observation
+        SET status = 'FORMAL', examination_date = #{examinationDate}, confirmed_at = #{confirmedAt},
+            updated_at = #{confirmedAt}
+        WHERE report_id = #{reportId} AND status = 'DRAFT'
+    </update>
+</mapper>

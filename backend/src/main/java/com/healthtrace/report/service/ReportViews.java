@@ -63,7 +63,8 @@ public final class ReportViews {
             LocalDateTime createdAt,
             int photoCount,
             Long coverPhotoId,
-            boolean coverHasPreview) {
+            boolean coverHasPreview,
+            String lastOcrErrorCode) {
     }
 
     public enum PhotoVariant {

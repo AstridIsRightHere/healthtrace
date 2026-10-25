@@ -30,11 +30,17 @@ public enum ErrorCode {
     /** 报告/图片不存在或无权访问：与档案同码，统一 404 不泄露存在性。 */
     RESOURCE_NOT_FOUND(HttpStatus.NOT_FOUND, "HT-3001", "资源不存在", false),
 
+    /** 乐观锁版本不一致：报告已被其他操作修改。 */
+    VERSION_CONFLICT(HttpStatus.CONFLICT, "HT-3002", "内容已被修改，请刷新后重试", false),
+
     REPORT_STATE_CONFLICT(HttpStatus.CONFLICT, "HT-4002", "当前报告状态不允许此操作", false),
+    /** 发起第三方 OCR 前未取得本次明确同意（NFR-002）：不调用供应商。 */
+    OCR_CONSENT_REQUIRED(HttpStatus.FORBIDDEN, "HT-4003", "需要先同意使用第三方 OCR 识别", false),
     REPORT_FILE_LIMIT(HttpStatus.CONFLICT, "HT-4005", "单份报告最多 20 个文件", false),
     STORAGE_QUOTA_EXCEEDED(HttpStatus.CONFLICT, "HT-4006", "存储空间不足（每个账号上限 1 GiB）", false),
 
     TOO_MANY_REQUESTS(HttpStatus.TOO_MANY_REQUESTS, "HT-5001", "尝试次数过多，请稍后再试", true),
+    OCR_UNAVAILABLE(HttpStatus.SERVICE_UNAVAILABLE, "HT-5002", "OCR 识别暂不可用，可稍后重试或手动录入", true),
 
     INTERNAL_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "HT-9001", "内部处理失败，请稍后重试", true);
 

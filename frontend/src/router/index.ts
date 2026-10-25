@@ -51,6 +51,12 @@ const router = createRouter({
       name: 'report-upload',
       component: () => import('../views/ReportUploadView.vue'),
     },
+    {
+      path: '/reports/:reportId(\\d+)/review',
+      name: 'report-review',
+      component: () => import('../views/ReportReviewView.vue'),
+      props: (route) => ({ reportId: Number(route.params.reportId) }),
+    },
     // 后端 dev 邮件日志中的链接为 /verify-email?token=...，保留查询参数转到 /verify
     { path: '/verify-email', redirect: (to) => ({ name: 'verify', query: to.query }) },
     { path: '/:pathMatch(.*)*', redirect: '/' },

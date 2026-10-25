@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.healthtrace.profile.mapper.ProfileMapper">
+
+    <insert id="insertProfile" useGeneratedKeys="true" keyProperty="id" keyColumn="id">
+        INSERT INTO patient_profile (nickname, status, version, created_at, updated_at)
+        VALUES (#{nickname}, #{status}, #{version}, #{createdAt}, #{updatedAt})
+    </insert>
+
+    <insert id="insertAccess" useGeneratedKeys="true" keyProperty="id" keyColumn="id">
+        INSERT INTO profile_access (account_id, profile_id, relationship, access_status, authorization_declared_at,
+                                    declaration_version, revoked_at, created_at, updated_at)
+        VALUES (#{accountId}, #{profileId}, #{relationship}, #{accessStatus}, #{authorizationDeclaredAt},
+                #{declarationVersion}, #{revokedAt}, #{createdAt}, #{updatedAt})
+    </insert>
+
+    <sql id="recordColumns">
+        p.id AS profile_id, p.nickname, p.status, p.version,
+        a.relationship, a.authorization_declared_at, a.declaration_version
+    </sql>
+
+    <select id="findActiveByAccountId" resultType="com.healthtrace.profile.domain.ProfileRecord">
+        SELECT <include refid="recordColumns"/>
+        FROM profile_access a
+        JOIN patient_profile p ON p.id = a.profile_id
+        WHERE a.account_id = #{accountId} AND a.access_status = 'ACTIVE'
+    </select>
+
+    <select id="findActiveByAccountAndProfile" resultType="com.healthtrace.profile.domain.ProfileRecord">
+        SELECT <include refid="recordColumns"/>
+        FROM profile_access a
+        JOIN patient_profile p ON p.id = a.profile_id
+        WHERE a.account_id = #{accountId} AND a.profile_id = #{profileId} AND a.access_status = 'ACTIVE'
+    </select>
+</mapper>

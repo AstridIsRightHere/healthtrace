@@ -3,6 +3,8 @@
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { errorMessage } from '../api'
+import PendingReportList from '../components/home/PendingReportList.vue'
+import UploadFab from '../components/home/UploadFab.vue'
 import { useAuthStore } from '../stores/auth'
 import { useProfileStore } from '../stores/profile'
 
@@ -47,5 +49,8 @@ async function onLogout() {
       </p>
       <p v-if="message" class="notice notice-error" role="alert">{{ message }}</p>
     </section>
+
+    <PendingReportList v-if="profile.profile" :profile-id="profile.profile.id" />
+    <UploadFab />
   </main>
 </template>

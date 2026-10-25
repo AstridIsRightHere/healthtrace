@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.healthtrace.report.mapper.PhotoMapper">
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id" keyColumn="id">
+        INSERT INTO photo (report_id, profile_id, object_key, content_digest, media_type, byte_size,
+                           preview_object_key, preview_media_type, preview_byte_size, page_order, storage_status,
+                           created_at, updated_at)
+        VALUES (#{reportId}, #{profileId}, #{objectKey}, #{contentDigest}, #{mediaType}, #{byteSize},
+                #{previewObjectKey}, #{previewMediaType}, #{previewByteSize}, #{pageOrder}, #{storageStatus},
+                #{createdAt}, #{updatedAt})
+    </insert>
+
+    <select id="findById" resultType="com.healthtrace.report.domain.Photo">
+        SELECT id, report_id, profile_id, object_key, content_digest, media_type, byte_size,
+               preview_object_key, preview_media_type, preview_byte_size, page_order, storage_status,
+               created_at, updated_at
+        FROM photo WHERE id = #{id}
+    </select>
+
+    <update id="updateStorageStatus">
+        UPDATE photo SET storage_status = #{status}, updated_at = #{updatedAt} WHERE id = #{id}
+    </update>
+
+    <select id="countActiveByReport" resultType="int">
+        SELECT COUNT(*) FROM photo
+        WHERE report_id = #{reportId} AND storage_status IN ('PENDING', 'COMPLETE')
+    </select>
+
+    <select id="sumActiveBytesByAccount" resultType="long">
+        SELECT COALESCE(SUM(p.byte_size + COALESCE(p.preview_byte_size, 0)), 0)
+        FROM photo p JOIN report r ON r.id = p.report_id
+        WHERE r.created_by = #{accountId} AND p.storage_status IN ('PENDING', 'COMPLETE')
+    </select>
+
+    <select id="findReportIdsByDigest" resultType="long">
+        SELECT DISTINCT report_id FROM photo
+        WHERE profile_id = #{profileId} AND content_digest = #{contentDigest} AND storage_status = 'COMPLETE'
+        ORDER BY report_id
+    </select>
+</mapper>

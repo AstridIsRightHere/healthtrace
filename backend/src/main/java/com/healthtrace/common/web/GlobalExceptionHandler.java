@@ -5,6 +5,9 @@ import org.slf4j.LoggerFactory;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.MissingServletRequestParameterException;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
+import org.springframework.web.multipart.support.MissingServletRequestPartException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
@@ -46,6 +49,23 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ErrorResponse> handleTypeMismatch(MethodArgumentTypeMismatchException ex) {
         ErrorCode code = ErrorCode.MALFORMED_REQUEST;
         return ResponseEntity.status(code.status()).body(ErrorResponse.of(code));
+    }
+
+    /** multipart 超过容器限制（spring.servlet.multipart.*）：与服务端逐文件校验同一错误码。 */
+    @ExceptionHandler(MaxUploadSizeExceededException.class)
+    public ResponseEntity<ErrorResponse> handleUploadTooLarge(MaxUploadSizeExceededException ex) {
+        ErrorCode code = ErrorCode.FILE_TOO_LARGE;
+        return ResponseEntity.status(code.status()).body(ErrorResponse.of(code));
+    }
+
+    /** 缺少必填的 multipart 文件或参数。 */
+    @ExceptionHandler({MissingServletRequestPartException.class, MissingServletRequestParameterException.class})
+    public ResponseEntity<ErrorResponse> handleMissingPart(Exception ex) {
+        String name = ex instanceof MissingServletRequestPartException p ? p.getRequestPartName()
+                : ((MissingServletRequestParameterException) ex).getParameterName();
+        ErrorCode code = ErrorCode.VALIDATION_FAILED;
+        return ResponseEntity.status(code.status()).body(ErrorResponse.of(code, code.defaultMessage(),
+                List.of(new FieldErrorItem(name, "NotNull", "缺少必填项"))));
     }
 
     @ExceptionHandler(Exception.class)

@@ -4,11 +4,11 @@
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
 
-    <!-- DEC-012（2026-10-24 升级确认）：Spring Boot 3.5.x，Flyway 11.x 与 MySQL 驱动版本由 Boot 管理 -->
+    <!-- DEC-012（2026-10-25 基线对齐确认）：Spring Boot 4.1.x，Flyway 12.x 与 MySQL 驱动版本由 Boot 管理 -->
     <parent>
         <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-starter-parent</artifactId>
-        <version>3.5.16</version>
+        <version>4.1.2</version>
         <relativePath/>
     </parent>
 
@@ -19,15 +19,15 @@
     <description>HealthTrace 模块化单体后端（ADR-002）</description>
 
     <properties>
-        <java.version>21</java.version>
-        <!-- ADR-012 / DEC-022：MyBatis，不混用 JPA 或 MyBatis-Plus -->
-        <mybatis-spring-boot.version>3.0.5</mybatis-spring-boot.version>
+        <java.version>25</java.version>
+        <!-- ADR-012 / DEC-022：MyBatis，不混用 JPA 或 MyBatis-Plus；Starter 4.1.x 对应 Boot 4.1 -->
+        <mybatis-spring-boot.version>4.1.0</mybatis-spring-boot.version>
     </properties>
 
     <dependencies>
         <dependency>
             <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-web</artifactId>
+            <artifactId>spring-boot-starter-webmvc</artifactId>
         </dependency>
         <dependency>
             <groupId>org.springframework.boot</groupId>
@@ -38,10 +38,10 @@
             <artifactId>mybatis-spring-boot-starter</artifactId>
             <version>${mybatis-spring-boot.version}</version>
         </dependency>
-        <!-- ADR-009 / DEC-019：Flyway 迁移 -->
+        <!-- ADR-009 / DEC-019：Flyway 迁移。Boot 4 起自动配置拆分为独立模块，须使用 starter 才会自动执行 -->
         <dependency>
-            <groupId>org.flywaydb</groupId>
-            <artifactId>flyway-core</artifactId>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-flyway</artifactId>
         </dependency>
         <dependency>
             <groupId>org.flywaydb</groupId>

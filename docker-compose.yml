@@ -2,7 +2,8 @@
 # 账号密码从根目录 .env 读取（参考 .env.example），.env 不进入 Git。
 services:
   mysql:
-    image: mysql:8.4
+    # 固定补丁版本（2026-10-25 基线对齐确认）：Flyway 12.4.0 官方验证至 MySQL 9.4
+    image: mysql:8.4.13
     container_name: healthtrace-mysql
     restart: unless-stopped
     environment:

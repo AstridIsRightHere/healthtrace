@@ -1,4 +1,8 @@
 # 开发环境：本机 Docker Compose 启动的 MySQL 8.4，仅使用合成数据。
+server:
+  # 只绑定本机回环地址，不对局域网暴露（与 docker-compose.yml 中 MySQL 一致）
+  address: 127.0.0.1
+
 logging:
   level:
     com.healthtrace: debug

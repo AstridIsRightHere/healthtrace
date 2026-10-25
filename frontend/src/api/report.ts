@@ -48,6 +48,8 @@ export interface ReportListItem {
   photoCount: number
   coverPhotoId: number | null
   coverHasPreview: boolean
+  /** 最近一次 OCR 任务的归一化错误码（无任务或成功时为 null） */
+  lastOcrErrorCode: string | null
 }
 
 export interface CreateReportPayload {

@@ -4,6 +4,7 @@ import { computed, onBeforeUnmount, reactive, ref } from 'vue'
 import { RouterLink, useRouter } from 'vue-router'
 import { errorMessage, fieldErrors } from '../api'
 import { reportApi } from '../api/report'
+import { ocrApi } from '../api/ocr'
 import { useAuthStore } from '../stores/auth'
 import { useProfileStore } from '../stores/profile'
 import { canGeneratePreview, createPreview } from '../utils/imageCompress'
@@ -164,6 +165,27 @@ function onDuplicateSkip() {
   if (item) item.status = 'skipped'
 }
 
+const uploadedCount = computed(() => items.value.filter((item) => item.status === 'done').length)
+const ocrConsent = ref(false)
+const proceeding = ref(false)
+
+/** 上传完成后的下一步：用户明确勾选同意才提交第三方 OCR（NFR-002），否则可转手动录入 */
+async function onProceed(mode: 'ocr' | 'manual') {
+  if (reportId.value === null || proceeding.value) return
+  if (mode === 'ocr' && !ocrConsent.value) return
+  proceeding.value = true
+  message.value = ''
+  try {
+    if (mode === 'ocr') await ocrApi.submit(reportId.value)
+    else await ocrApi.manualEntry(reportId.value)
+    await router.push({ name: 'report-review', params: { reportId: String(reportId.value) } })
+  } catch (error) {
+    message.value = errorMessage(error, mode === 'ocr' ? '提交识别失败，可稍后重试或手动录入' : '进入手动录入失败，请稍后重试')
+  } finally {
+    proceeding.value = false
+  }
+}
+
 onBeforeUnmount(() => {
   for (const item of items.value) if (item.thumbUrl) URL.revokeObjectURL(item.thumbUrl)
 })
@@ -228,17 +250,35 @@ onBeforeUnmount(() => {
         <p v-if="message" class="notice notice-error" role="alert">{{ message }}</p>
         <p v-if="allSettled" class="notice notice-success" role="status">上传完成，报告已加入首页待处理列表。</p>
 
+        <div v-if="allSettled && uploadedCount > 0" class="ocr-next">
+          <label class="declaration">
+            <input v-model="ocrConsent" type="checkbox" :disabled="proceeding" />
+            <span>我同意将本报告的图片发送至第三方 OCR 服务（百度医疗检验报告单识别）进行识别，识别结果需逐项核对后才会保存。</span>
+          </label>
+          <button
+            class="btn-primary"
+            type="button"
+            :disabled="!ocrConsent || proceeding"
+            @click="onProceed('ocr')"
+          >
+            {{ proceeding ? '处理中…' : '开始识别' }}
+          </button>
+          <button class="btn-secondary" type="button" :disabled="proceeding" @click="onProceed('manual')">
+            不使用 OCR，手动录入
+          </button>
+        </div>
+
         <button v-if="!started" class="btn-primary" type="submit" :disabled="creating || items.length === 0">
           {{ creating ? '创建中…' : `开始上传（${items.length} 个文件）` }}
         </button>
         <button
           v-else
-          class="btn-primary"
+          class="btn-link"
           type="button"
-          :disabled="busy || !allSettled"
+          :disabled="busy || !allSettled || proceeding"
           @click="router.push({ name: 'home' })"
         >
-          {{ allSettled ? '完成' : '上传中，请稍候…' }}
+          {{ allSettled ? '稍后处理，返回首页' : '上传中，请稍候…' }}
         </button>
       </form>
     </section>

@@ -1,7 +1,9 @@
 <script setup lang="ts">
 // 首页待处理报告（status=DRAFT：未确认且正常可见）
 import { onMounted, ref } from 'vue'
+import { RouterLink } from 'vue-router'
 import { errorMessage } from '../../api'
+import { ocrErrorText } from '../../api/ocr'
 import { reportApi, type ProcessingStatus, type ReportListItem } from '../../api/report'
 
 const props = defineProps<{ profileId: number }>()
@@ -16,6 +18,13 @@ const statusText: Record<ProcessingStatus, string> = {
   PENDING_CONFIRMATION: '待确认',
   CONFIRMED: '已确认',
   FAILED: '处理失败',
+}
+
+function actionText(status: ProcessingStatus): string {
+  if (status === 'PENDING_CONFIRMATION') return '去核对'
+  if (status === 'RECOGNIZING') return '查看进度'
+  if (status === 'FAILED') return '处理'
+  return '识别 / 录入'
 }
 
 function title(report: ReportListItem): string {
@@ -60,7 +69,17 @@ onMounted(async () => {
           <p class="queue-sub">
             {{ report.photoCount }} 个文件 · {{ statusText[report.processingStatus] }} · {{ uploadedAt(report.createdAt) }}
           </p>
+          <p v-if="report.processingStatus === 'FAILED'" class="field-error">
+            {{ ocrErrorText(report.lastOcrErrorCode) }}
+          </p>
         </div>
+        <RouterLink
+          v-if="report.processingStatus !== 'UPLOADING' || report.photoCount > 0"
+          class="btn-secondary btn-small"
+          :to="{ name: 'report-review', params: { reportId: String(report.id) } }"
+        >
+          {{ actionText(report.processingStatus) }}
+        </RouterLink>
       </li>
     </ul>
   </section>

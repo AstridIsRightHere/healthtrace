@@ -365,6 +365,6 @@ public class ReportService {
     private static ReportListItem toListItem(ReportSummary s) {
         return new ReportListItem(s.getId(), s.getTitle(), s.getReportType(), s.getExaminationDate(),
                 s.getProcessingStatus(), s.getCreatedAt(), s.getPhotoCount(), s.getCoverPhotoId(),
-                s.getCoverHasPreview());
+                s.getCoverHasPreview(), s.getLastOcrErrorCode());
     }
 }

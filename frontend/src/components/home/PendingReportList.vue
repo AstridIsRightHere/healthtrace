@@ -5,6 +5,7 @@ import { RouterLink } from 'vue-router'
 import { errorMessage } from '../../api'
 import { ocrErrorText } from '../../api/ocr'
 import { reportApi, type ProcessingStatus, type ReportListItem } from '../../api/report'
+import DeleteReportDialog from './DeleteReportDialog.vue'
 
 const props = defineProps<{ profileId: number }>()
 
@@ -35,6 +36,40 @@ function uploadedAt(iso: string): string {
   // 后端时间为 UTC（无时区后缀），按 UTC 解析再本地显示
   const date = new Date(/[zZ]|[+-]\d{2}:?\d{2}$/.test(iso) ? iso : `${iso}Z`)
   return Number.isNaN(date.getTime()) ? '' : date.toLocaleString('zh-CN', { dateStyle: 'medium', timeStyle: 'short' })
+}
+
+// 没有任何上传完成文件的报告无法识别或录入（后端 409），只提供删除
+function isEmpty(report: ReportListItem): boolean {
+  return report.photoCount === 0 && report.processingStatus !== 'RECOGNIZING'
+}
+
+const pendingDelete = ref<ReportListItem | null>(null)
+const deleting = ref(false)
+const deleteError = ref('')
+
+function askDelete(report: ReportListItem) {
+  deleteError.value = ''
+  pendingDelete.value = report
+}
+
+function cancelDelete() {
+  if (!deleting.value) pendingDelete.value = null
+}
+
+async function confirmDelete() {
+  const target = pendingDelete.value
+  if (!target) return
+  deleting.value = true
+  deleteError.value = ''
+  try {
+    await reportApi.remove(target.id)
+    reports.value = reports.value.filter((r) => r.id !== target.id)
+    pendingDelete.value = null
+  } catch (error) {
+    deleteError.value = errorMessage(error, '删除失败，请稍后重试')
+  } finally {
+    deleting.value = false
+  }
 }
 
 onMounted(async () => {
@@ -73,8 +108,17 @@ onMounted(async () => {
             {{ ocrErrorText(report.lastOcrErrorCode) }}
           </p>
         </div>
+        <button
+          v-if="isEmpty(report)"
+          type="button"
+          class="btn-ghost btn-small"
+          :aria-label="`删除报告：${title(report)}`"
+          @click="askDelete(report)"
+        >
+          删除
+        </button>
         <RouterLink
-          v-if="report.processingStatus !== 'UPLOADING' || report.photoCount > 0"
+          v-else
           class="btn-secondary btn-small"
           :to="{ name: 'report-review', params: { reportId: String(report.id) } }"
         >
@@ -82,5 +126,15 @@ onMounted(async () => {
         </RouterLink>
       </li>
     </ul>
+
+    <DeleteReportDialog
+      v-if="pendingDelete"
+      :key="pendingDelete.id"
+      :report-title="title(pendingDelete)"
+      :deleting="deleting"
+      :error="deleteError"
+      @confirm="confirmDelete"
+      @cancel="cancelDelete"
+    />
   </section>
 </template>

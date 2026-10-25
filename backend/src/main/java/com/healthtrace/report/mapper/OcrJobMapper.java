@@ -44,4 +44,7 @@ public interface OcrJobMapper {
 
     /** 运行超时（进程崩溃等）的任务。 */
     List<OcrJob> findStuckRunning(@Param("startedBefore") LocalDateTime startedBefore, @Param("limit") int limit);
+
+    /** 彻底删除报告时清理其全部任务记录（含加密原文）。 */
+    int deleteByReport(@Param("reportId") long reportId);
 }

@@ -273,7 +273,7 @@ onBeforeUnmount(() => {
         </button>
         <button
           v-else
-          class="btn-link"
+          class="btn-ghost btn-block"
           type="button"
           :disabled="busy || !allSettled || proceeding"
           @click="router.push({ name: 'home' })"

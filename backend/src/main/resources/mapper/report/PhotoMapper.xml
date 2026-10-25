@@ -46,4 +46,12 @@
         WHERE profile_id = #{profileId} AND content_digest = #{contentDigest} AND storage_status = 'COMPLETE'
         ORDER BY report_id
     </select>
+
+    <select id="findAllKeysByReport" resultType="com.healthtrace.report.domain.Photo">
+        SELECT id, object_key, preview_object_key FROM photo WHERE report_id = #{reportId}
+    </select>
+
+    <delete id="deleteByReport">
+        DELETE FROM photo WHERE report_id = #{reportId}
+    </delete>
 </mapper>

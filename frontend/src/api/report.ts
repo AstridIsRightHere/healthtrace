@@ -96,6 +96,9 @@ export const reportApi = {
       .get<ReportListItem[]>(`/patient-profiles/${profileId}/reports`, { params: { status: 'DRAFT' } })
       .then((res) => res.data),
 
+  /** DELETE /api/v1/reports/{reportId}：彻底删除本人名下尚未确认的报告 */
+  remove: (reportId: number) => api.delete<void>(`/reports/${reportId}`).then(() => undefined),
+
   /** 图片访问地址：同源会话 Cookie 鉴权，服务端返回 no-store 或 302 到短时签名 URL */
   photoUrl: (photoId: number, variant: PhotoVariant = 'preview') =>
     `/api/v1/photos/${photoId}/access?variant=${variant}`,

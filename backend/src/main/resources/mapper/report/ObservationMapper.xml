@@ -44,6 +44,20 @@
         WHERE report_id = #{reportId} AND status = 'DRAFT'
     </update>
 
+    <!-- 与 V5 回填规则一致：名称去空格（半角/全角）、全角％转半角、转大写后精确匹配别名；required_unit 非空时单位也须一致 -->
+    <update id="assignMetricDefinitions">
+        UPDATE observation o
+            JOIN metric_alias a
+            ON a.alias_normalized =
+               UPPER(REPLACE(REPLACE(REPLACE(TRIM(o.original_name), ' ', ''), '　', ''), '％', '%')) COLLATE utf8mb4_bin
+        SET o.metric_definition_id = a.metric_definition_id
+        WHERE o.report_id = #{reportId}
+          AND o.status = 'FORMAL'
+          AND o.temp_metric_id IS NULL
+          AND (a.required_unit IS NULL
+            OR REPLACE(REPLACE(TRIM(IFNULL(o.unit_text, '')), ' ', ''), '％', '%') COLLATE utf8mb4_bin = a.required_unit)
+    </update>
+
     <delete id="deleteByReport">
         DELETE FROM observation WHERE report_id = #{reportId}
     </delete>

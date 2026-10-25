@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.healthtrace.indicator.mapper.TrendMapper">
+
+    <sql id="definitionColumns">
+        id, code, dictionary_id, national_code, standard_name, standard_unit, report_type, comparability_note,
+        dictionary_version, sort_order
+    </sql>
+
+    <select id="findAllDefinitions" resultType="com.healthtrace.indicator.domain.MetricDefinition">
+        SELECT <include refid="definitionColumns"/> FROM metric_definition ORDER BY sort_order, id
+    </select>
+
+    <select id="findDefinitionByCode" resultType="com.healthtrace.indicator.domain.MetricDefinition">
+        SELECT <include refid="definitionColumns"/> FROM metric_definition WHERE code = #{code}
+    </select>
+
+    <!-- 只取已确认且正常可见的报告；草稿永远不进入图表（FR-007） -->
+    <sql id="formalFrom">
+        FROM observation o
+                 JOIN report r ON r.id = o.report_id
+        WHERE r.profile_id = #{profileId}
+          AND r.visibility_status = 'NORMAL'
+          AND r.processing_status = 'CONFIRMED'
+          AND o.status = 'FORMAL'
+          AND o.examination_date IS NOT NULL
+    </sql>
+
+    <select id="findFormalByProfile" resultType="com.healthtrace.indicator.domain.TrendObservation">
+        SELECT o.id AS observation_id, o.report_id, d.code AS metric_code, o.examination_date, o.original_value,
+               o.result_kind, o.numeric_value, o.unit_text, o.reference_text, o.reference_low, o.reference_high,
+               o.abnormal_flag, o.specimen_text, o.method_text
+        FROM observation o
+                 JOIN report r ON r.id = o.report_id
+                 JOIN metric_definition d ON d.id = o.metric_definition_id
+        WHERE r.profile_id = #{profileId}
+          AND r.visibility_status = 'NORMAL'
+          AND r.processing_status = 'CONFIRMED'
+          AND o.status = 'FORMAL'
+          AND o.examination_date IS NOT NULL
+        ORDER BY d.sort_order, o.examination_date, o.id
+    </select>
+
+    <select id="findFormalByMetric" resultType="com.healthtrace.indicator.domain.TrendObservation">
+        SELECT o.id AS observation_id, o.report_id, o.examination_date, o.original_value, o.result_kind,
+               o.numeric_value, o.unit_text, o.reference_text, o.reference_low, o.reference_high, o.abnormal_flag,
+               o.specimen_text, o.method_text
+        <include refid="formalFrom"/>
+          AND o.metric_definition_id = #{metricDefinitionId}
+          AND o.examination_date &lt;= #{to}
+        ORDER BY o.examination_date, o.id
+    </select>
+</mapper>

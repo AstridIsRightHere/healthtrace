@@ -260,6 +260,8 @@ public class ReviewService {
         }
 
         observationMapper.confirmDrafts(reportId, command.examinationDate(), now);
+        // 按 V5 字典别名为正式结果写入标准指标；未命中的保持为空，不进入趋势（FR-008/010）
+        observationMapper.assignMetricDefinitions(reportId);
         if (reportMapper.confirm(reportId, command.version(), command.examinationDate(), accountId, now) != 1) {
             throw new ApiException(ErrorCode.VERSION_CONFLICT);
         }

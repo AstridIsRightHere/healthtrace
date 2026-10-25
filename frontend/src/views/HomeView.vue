@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // 首页：按档案关系展示问候标题（PRD），指标等业务内容见 FR-012，后续迭代实现
 import { ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { RouterLink, useRouter } from 'vue-router'
 import { errorMessage } from '../api'
 import PendingReportList from '../components/home/PendingReportList.vue'
 import UploadFab from '../components/home/UploadFab.vue'
@@ -51,6 +51,14 @@ async function onLogout() {
     </section>
 
     <PendingReportList v-if="profile.profile" :profile-id="profile.profile.id" />
+
+    <section class="home-card trend-entry" aria-labelledby="trend-entry-title">
+      <div>
+        <h2 id="trend-entry-title">指标趋势</h2>
+        <p class="field-hint">查看已确认结果随时间的变化，图表下方附完整数据表格。</p>
+      </div>
+      <RouterLink class="btn-secondary btn-small" :to="{ name: 'trends' }">查看趋势</RouterLink>
+    </section>
     <UploadFab />
   </main>
 </template>

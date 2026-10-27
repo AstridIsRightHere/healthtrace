@@ -1,6 +1,6 @@
 <script setup lang="ts">
 // 首页待处理报告（status=DRAFT：未确认且正常可见）
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { RouterLink } from 'vue-router'
 import { errorMessage } from '../../api'
 import { ocrErrorText } from '../../api/ocr'
@@ -12,6 +12,9 @@ const props = defineProps<{ profileId: number }>()
 const reports = ref<ReportListItem[]>([])
 const loading = ref(true)
 const message = ref('')
+/** 首页只展示最近 3 条（FR-012），数量徽标显示全部待处理数 */
+const HOME_LIMIT = 3
+const visibleReports = computed(() => reports.value.slice(0, HOME_LIMIT))
 
 const statusText: Record<ProcessingStatus, string> = {
   UPLOADING: '上传中',
@@ -85,29 +88,42 @@ onMounted(async () => {
 
 <template>
   <section class="home-card pending-reports" aria-labelledby="pending-title">
-    <h2 id="pending-title">待处理报告</h2>
+    <div class="recent-visits-head">
+      <h2 id="pending-title">待处理报告</h2>
+      <span v-if="reports.length" class="pending-badge" data-testid="pending-count">{{ reports.length }} 份待处理</span>
+    </div>
     <p v-if="loading" class="field-hint" role="status">加载中…</p>
     <p v-else-if="message" class="notice notice-error" role="alert">{{ message }}</p>
     <p v-else-if="reports.length === 0" class="field-hint">还没有待处理的报告，点击右下角“上传报告”开始。</p>
     <ul v-else class="pending-list">
-      <li v-for="report in reports" :key="report.id" class="pending-item">
-        <img
-          v-if="report.coverPhotoId && report.coverHasPreview"
-          class="queue-thumb"
-          :src="reportApi.photoUrl(report.coverPhotoId, 'preview')"
-          alt=""
-          loading="lazy"
-        />
-        <span v-else class="queue-thumb queue-thumb-placeholder" aria-hidden="true">报告</span>
-        <div class="queue-meta">
-          <p class="queue-name">{{ title(report) }}</p>
-          <p class="queue-sub">
-            {{ report.photoCount }} 个文件 · {{ statusText[report.processingStatus] }} · {{ uploadedAt(report.createdAt) }}
-          </p>
-          <p v-if="report.processingStatus === 'FAILED'" class="field-error">
-            {{ ocrErrorText(report.lastOcrErrorCode) }}
-          </p>
-        </div>
+      <li v-for="report in visibleReports" :key="report.id" class="pending-item" data-testid="pending-item">
+        <component
+          :is="isEmpty(report) ? 'div' : RouterLink"
+          class="pending-link"
+          v-bind="isEmpty(report) ? {} : { to: { name: 'report-review', params: { reportId: String(report.id) } } }"
+          data-testid="pending-link"
+        >
+          <img
+            v-if="report.coverPhotoId && report.coverHasPreview"
+            class="queue-thumb"
+            :src="reportApi.photoUrl(report.coverPhotoId, 'preview')"
+            alt=""
+            loading="lazy"
+          />
+          <span v-else class="queue-thumb queue-thumb-placeholder" aria-hidden="true">报告</span>
+          <div class="queue-meta">
+            <p class="queue-name">{{ title(report) }}</p>
+            <p class="queue-sub">
+              <span class="pending-status" :class="`pending-status-${report.processingStatus.toLowerCase()}`">
+                {{ statusText[report.processingStatus] }}
+              </span>
+              {{ report.photoCount }} 个文件 · {{ uploadedAt(report.createdAt) }}
+            </p>
+            <p v-if="report.processingStatus === 'FAILED'" class="field-error">
+              {{ ocrErrorText(report.lastOcrErrorCode) }}
+            </p>
+          </div>
+        </component>
         <button
           v-if="isEmpty(report)"
           type="button"

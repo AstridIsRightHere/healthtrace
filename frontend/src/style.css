@@ -1594,6 +1594,168 @@ legend {
   overflow-wrap: anywhere;
 }
 
+/* 首页顶部问候（FR-012）：左侧品牌+问候，右侧退出 */
+.home-greeting {
+  align-items: flex-start;
+  gap: 16px;
+}
+
+.home-greeting-text {
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+}
+
+.home-greeting-text h1 {
+  margin: 0;
+  font-size: 26px;
+  line-height: 1.3;
+  color: var(--text-h);
+  overflow-wrap: anywhere;
+}
+
+.home-account {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.home-greeting > .btn-small {
+  flex-shrink: 0;
+}
+
+.pending-badge {
+  flex-shrink: 0;
+  padding: 2px 10px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--accent-hover);
+  background: var(--accent-soft);
+  border-radius: 999px;
+}
+
+/* 首页关注指标：横向滑动卡片 */
+.follow-list {
+  display: flex;
+  gap: 12px;
+  margin: 0 -4px;
+  padding: 4px 4px 8px;
+  list-style: none;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  -webkit-overflow-scrolling: touch;
+}
+
+.follow-list > li {
+  flex: 0 0 auto;
+  scroll-snap-align: start;
+}
+
+.follow-card {
+  width: 152px;
+  min-height: 132px;
+  display: grid;
+  align-content: start;
+  gap: 2px;
+  padding: 14px 16px;
+  color: inherit;
+  text-decoration: none;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.follow-card:hover {
+  border-color: var(--accent);
+  box-shadow: 0 6px 16px rgba(92, 81, 73, 0.08);
+}
+
+.follow-card:focus-visible {
+  outline: 3px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.follow-card-abnormal {
+  border-color: var(--error-text);
+}
+
+.follow-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.follow-value {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  margin-top: 4px;
+  font-size: 26px;
+  font-weight: 700;
+  line-height: 1.2;
+  color: var(--text-h);
+  overflow-wrap: anywhere;
+}
+
+.follow-empty {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.follow-arrow {
+  font-size: 18px;
+}
+
+.follow-arrow-up {
+  color: var(--accent-hover);
+}
+
+.follow-arrow-down {
+  color: var(--focus);
+}
+
+.follow-arrow-flat {
+  color: var(--muted);
+}
+
+.follow-unit,
+.follow-date {
+  font-size: 13px;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+
+/* 操作结果轻提示：底部居中浮出，几秒后自动消失（错误提示不用它） */
+.toast {
+  position: fixed;
+  left: 50%;
+  bottom: 32px;
+  z-index: 50;
+  max-width: min(420px, calc(100vw - 32px));
+  margin: 0;
+  padding: 12px 20px;
+  border-radius: 999px;
+  box-shadow: var(--shadow);
+  transform: translateX(-50%);
+  overflow-wrap: anywhere;
+  text-align: center;
+}
+
+.toast-enter-active,
+.toast-leave-active {
+  transition: opacity 0.2s, transform 0.2s;
+}
+
+.toast-enter-from,
+.toast-leave-to {
+  opacity: 0;
+  transform: translate(-50%, 8px);
+}
+
 @media (prefers-reduced-motion: reduce) {
   * {
     transition: none !important;

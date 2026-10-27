@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // 就诊时间线（FR-013）：就诊日期倒序；手填日期/医院/科室/备注；关联本档案报告。
 // 就诊日与报告检查日分别记录，就诊次数按就诊记录计数。
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
 import { RouterLink } from 'vue-router'
 import { errorMessage } from '../api'
 import { reportApi, type ReportListItem } from '../api/report'
@@ -44,10 +44,26 @@ const confirmDeleteId = ref<number | null>(null)
 
 const years = computed(() => groupByYear(visits.value))
 
+/** 成功提示以轻提示形式显示几秒后自动消失；错误提示保留，直到下一次操作 */
+const TOAST_MS = 3000
+let toastTimer: ReturnType<typeof setTimeout> | null = null
+
 function notify(text: string, isError = false) {
+  if (toastTimer) clearTimeout(toastTimer)
+  toastTimer = null
   message.value = text
   messageError.value = isError
+  if (!isError) {
+    toastTimer = setTimeout(() => {
+      message.value = ''
+      toastTimer = null
+    }, TOAST_MS)
+  }
 }
+
+onBeforeUnmount(() => {
+  if (toastTimer) clearTimeout(toastTimer)
+})
 
 function replaceVisit(v: Visit) {
   const i = visits.value.findIndex((x) => x.id === v.id)
@@ -189,9 +205,12 @@ async function remove(v: Visit) {
       <span class="visit-count">{{ visits.length ? `共 ${visits.length} 次就诊` : '' }}</span>
     </header>
 
-    <p v-if="message" class="notice" :class="messageError ? 'notice-error' : 'notice-success'" :role="messageError ? 'alert' : 'status'">
-      {{ message }}
-    </p>
+    <p v-if="message && messageError" class="notice notice-error" role="alert">{{ message }}</p>
+    <Transition name="toast">
+      <p v-if="message && !messageError" class="toast notice-success" role="status" data-testid="visit-toast">
+        {{ message }}
+      </p>
+    </Transition>
 
     <section class="home-card visit-form-card">
       <div v-if="!showForm" class="visit-form-entry">

@@ -171,6 +171,31 @@ class ReportServiceTest {
         verify(reportMapper, never()).findPendingByProfile(anyLong());
     }
 
+    @Test
+    void listConfirmedReportsUsesConfirmedQuery() {
+        com.healthtrace.report.domain.ReportSummary s = new com.healthtrace.report.domain.ReportSummary();
+        s.setId(31L);
+        s.setTitle("甲功");
+        s.setProcessingStatus(ProcessingStatus.CONFIRMED);
+        s.setExaminationDate(LocalDate.of(2026, 10, 1));
+        given(reportMapper.findConfirmedByProfile(PROFILE)).willReturn(List.of(s));
+
+        var items = service.listReports(ACCOUNT, PROFILE, ReportListFilter.CONFIRMED);
+
+        assertThat(items).singleElement().satisfies(i -> {
+            assertThat(i.id()).isEqualTo(31L);
+            assertThat(i.processingStatus()).isEqualTo(ProcessingStatus.CONFIRMED);
+        });
+        verify(reportMapper, never()).findPendingByProfile(anyLong());
+    }
+
+    @Test
+    void listConfirmedReportsChecksOwnership() {
+        assertThatThrownBy(() -> service.listReports(ACCOUNT, 999L, ReportListFilter.CONFIRMED))
+                .satisfies(e -> assertThat(codeOf(e).code()).isEqualTo("HT-3001"));
+        verify(reportMapper, never()).findConfirmedByProfile(anyLong());
+    }
+
     // ------------------------------------------------------------ upload
 
     @Test

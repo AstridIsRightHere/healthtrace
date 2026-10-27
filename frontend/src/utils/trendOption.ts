@@ -254,6 +254,109 @@ export function buildTrendOption(group: TrendGroup, range: DateRange, metricName
 
 type LineData = LineSeriesOption['data']
 
+/** 多系列配色：Okabe-Ito 色盲友好色板（去掉黄色，白底对比度不足） */
+export const SERIES_PALETTE = ['#0072B2', '#D55E00', '#009E73', '#CC79A7', '#56B4E9', '#E69F00']
+
+/** 多系列共用的点：标记所属系列名，供 tooltip 区分 */
+interface MultiPointData {
+  value: [number, number | null]
+  point?: TrendPoint
+  seriesLabel?: string
+}
+
+/**
+ * 同一可比组（同单位、同标本、同方法）的多个指标画在一张图里。
+ * 只有一个系列时等同 buildTrendOption（保留参考范围色带）；
+ * 多个系列时不画参考范围（各指标参考范围不同，避免混淆），参考范围放在 tooltip 与表格。
+ */
+export function buildMultiSeriesOption(
+  series: Array<{ name: string; group: TrendGroup }>,
+  range: DateRange,
+  unitText: string | null,
+): ChartOption {
+  if (series.length === 1) {
+    return buildTrendOption(series[0]!.group, range, series[0]!.name)
+  }
+  const unit = unitText ?? ''
+  const allPoints: TrendPoint[] = []
+
+  const lines: LineSeriesOption[] = series.map((s, idx) => {
+    const color = SERIES_PALETTE[idx % SERIES_PALETTE.length]!
+    const points = [...s.group.points].sort((a, b) => dateToTime(a.examinationDate) - dateToTime(b.examinationDate))
+    allPoints.push(...points)
+    const times = points.map((p) => dateToTime(p.examinationDate))
+    const breaks = gapBreaks(times)
+    const data: MultiPointData[] = []
+    points.forEach((p, i) => {
+      if (breaks.has(i)) data.push({ value: [(times[i - 1]! + times[i]!) / 2, null] })
+      data.push({ value: [times[i]!, p.numericValue], point: p, seriesLabel: s.name })
+    })
+    return {
+      type: 'line',
+      name: s.name,
+      connectNulls: false,
+      showAllSymbol: true,
+      // 不同系列用不同形状，颜色之外再区分一次（NFR-006）
+      symbol: ['circle', 'rect', 'diamond', 'triangle', 'roundRect', 'pin'][idx % 6],
+      symbolSize: 9,
+      lineStyle: { color, width: 2 },
+      itemStyle: { color, borderColor: '#fff', borderWidth: 1 },
+      emphasis: { focus: 'series' },
+      data: data as LineData,
+    }
+  })
+
+  const { min, max } = yExtent(allPoints)
+  const names = series.map((s) => s.name).join('、')
+
+  return {
+    animationDuration: 400,
+    color: SERIES_PALETTE,
+    aria: {
+      enabled: true,
+      label: {
+        description: `${names}组合趋势图，单位 ${unit || '未标注'}。完整数据见图下表格。`,
+      },
+    },
+    legend: { top: 0, left: 0, itemGap: 16, textStyle: { color: COLORS.axis } },
+    grid: { left: 12, right: 20, top: 40, bottom: 12, containLabel: true },
+    tooltip: {
+      trigger: 'item',
+      confine: true,
+      formatter: (params: unknown) => {
+        const d = (params as { data?: MultiPointData }).data
+        const p = d?.point
+        if (!p) return ''
+        return [
+          `<strong>${escapeHtml(d?.seriesLabel ?? '')}</strong> · ${p.examinationDate}`,
+          `结果：${escapeHtml(p.originalValue)} ${escapeHtml(unit)}`,
+          `参考：${escapeHtml(referenceText(p))}`,
+          `状态：${flagText(p.abnormalFlag)}`,
+          `与上次相比：${changeText(p.change)}`,
+        ].join('<br/>')
+      },
+    },
+    xAxis: {
+      type: 'time',
+      min: dateToTime(range.from),
+      max: dateToTime(range.to),
+      axisLine: { lineStyle: { color: COLORS.split } },
+      axisLabel: { color: COLORS.axis, hideOverlap: true },
+      splitLine: { show: false },
+    },
+    yAxis: {
+      type: 'value',
+      min,
+      max,
+      name: unit,
+      nameTextStyle: { color: COLORS.axis, align: 'left' },
+      axisLabel: { color: COLORS.axis },
+      splitLine: { lineStyle: { color: COLORS.split, type: 'dashed' } },
+    },
+    series: lines,
+  }
+}
+
 function escapeHtml(s: string): string {
   return s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!)
 }

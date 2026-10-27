@@ -13,9 +13,12 @@ public final class TrendViews {
     private TrendViews() {
     }
 
-    /** 有正式数据的指标。groupCount > 1 表示存在不同单位/标本/方法的结果。 */
+    /**
+     * 有正式数据的指标。groupCount > 1 表示存在不同单位/标本/方法的结果。
+     * standard=false 表示暂未纳入标准字典、按报告原名汇总的项目（code 以 RAW: 开头）。
+     */
     public record MetricSummary(String code, String standardName, String standardUnit, int count,
-                                LocalDate latestDate, int groupCount) {
+                                LocalDate latestDate, int groupCount, boolean standard) {
     }
 
     public record MetricInfo(String code, String standardName, String standardUnit, String comparabilityNote) {

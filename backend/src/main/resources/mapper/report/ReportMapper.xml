@@ -36,6 +36,25 @@
         ORDER BY r.created_at DESC, r.id DESC
     </select>
 
+    <select id="findConfirmedByProfile" resultType="com.healthtrace.report.domain.ReportSummary">
+        SELECT r.id, r.title, r.report_type, r.examination_date, r.processing_status, r.created_at,
+               (SELECT COUNT(*) FROM photo p
+                WHERE p.report_id = r.id AND p.storage_status = 'COMPLETE') AS photo_count,
+               c.id AS cover_photo_id,
+               (c.preview_object_key IS NOT NULL) AS cover_has_preview,
+               (SELECT j.error_code FROM ocr_job j
+                WHERE j.report_id = r.id ORDER BY j.id DESC LIMIT 1) AS last_ocr_error_code
+        FROM report r
+        LEFT JOIN photo c ON c.id = (
+            SELECT p2.id FROM photo p2
+            WHERE p2.report_id = r.id AND p2.storage_status = 'COMPLETE'
+            ORDER BY p2.page_order, p2.id LIMIT 1)
+        WHERE r.profile_id = #{profileId}
+          AND r.visibility_status = 'NORMAL'
+          AND r.processing_status = 'CONFIRMED'
+        ORDER BY r.examination_date DESC, r.id DESC
+    </select>
+
     <select id="findByIdForUpdate" resultType="com.healthtrace.report.domain.Report">
         SELECT id, profile_id, created_by, title, report_type, examination_date, processing_status,
                visibility_status, confirmed_by, confirmed_at, version, source_hospital_text, created_at, updated_at

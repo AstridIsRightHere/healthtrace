@@ -206,7 +206,7 @@ onBeforeUnmount(stopPoll)
 <template>
   <main class="home-page review-page">
     <header class="home-header">
-      <RouterLink class="btn-secondary" :to="{ name: 'home' }">返回首页</RouterLink>
+      <RouterLink class="btn-ghost btn-small" :to="{ name: 'home' }">← 返回首页</RouterLink>
       <p class="brand">HealthTrace</p>
     </header>
 
@@ -229,7 +229,7 @@ onBeforeUnmount(stopPoll)
               <p v-if="retryHint" class="field-hint">{{ retryHint }}</p>
               <p v-if="pollTimedOut" class="field-hint">
                 识别时间比预期长。
-                <button type="button" class="btn-link" @click="restartPoll">刷新状态</button>
+                <button type="button" class="text-link" @click="restartPoll">刷新状态</button>
               </p>
             </div>
           </div>

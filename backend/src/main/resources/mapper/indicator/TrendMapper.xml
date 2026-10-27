@@ -26,27 +26,49 @@
           AND o.examination_date IS NOT NULL
     </sql>
 
+    <sql id="observationColumns">
+        o.id AS observation_id, o.report_id, o.examination_date, o.original_value, o.result_kind,
+        o.numeric_value, o.unit_text, o.reference_text, o.reference_low, o.reference_high, o.abnormal_flag,
+        o.specimen_text, o.method_text, o.original_name
+    </sql>
+
+    <!-- 全部正式结果：已映射的带标准指标 code；未映射的 metric_code 为空，由服务层按报告原名归组 -->
     <select id="findFormalByProfile" resultType="com.healthtrace.indicator.domain.TrendObservation">
-        SELECT o.id AS observation_id, o.report_id, d.code AS metric_code, o.examination_date, o.original_value,
-               o.result_kind, o.numeric_value, o.unit_text, o.reference_text, o.reference_low, o.reference_high,
-               o.abnormal_flag, o.specimen_text, o.method_text
+        SELECT <include refid="observationColumns"/>, d.code AS metric_code
         FROM observation o
                  JOIN report r ON r.id = o.report_id
-                 JOIN metric_definition d ON d.id = o.metric_definition_id
+                 LEFT JOIN metric_definition d ON d.id = o.metric_definition_id
         WHERE r.profile_id = #{profileId}
           AND r.visibility_status = 'NORMAL'
           AND r.processing_status = 'CONFIRMED'
           AND o.status = 'FORMAL'
           AND o.examination_date IS NOT NULL
-        ORDER BY d.sort_order, o.examination_date, o.id
+        ORDER BY (d.sort_order IS NULL), d.sort_order, o.original_name, o.examination_date, o.id
     </select>
 
     <select id="findFormalByMetric" resultType="com.healthtrace.indicator.domain.TrendObservation">
-        SELECT o.id AS observation_id, o.report_id, o.examination_date, o.original_value, o.result_kind,
-               o.numeric_value, o.unit_text, o.reference_text, o.reference_low, o.reference_high, o.abnormal_flag,
-               o.specimen_text, o.method_text
+        SELECT <include refid="observationColumns"/>
         <include refid="formalFrom"/>
           AND o.metric_definition_id = #{metricDefinitionId}
+          AND o.examination_date &lt;= #{to}
+        ORDER BY o.examination_date, o.id
+    </select>
+
+    <!-- 单份报告的正式结果（报告对比用）；报告的授权、确认状态由调用方先校验 -->
+    <select id="findFormalByReport" resultType="com.healthtrace.indicator.domain.TrendObservation">
+        SELECT <include refid="observationColumns"/>, d.code AS metric_code
+        FROM observation o
+                 LEFT JOIN metric_definition d ON d.id = o.metric_definition_id
+        WHERE o.report_id = #{reportId}
+          AND o.status = 'FORMAL'
+        ORDER BY o.id
+    </select>
+
+    <!-- 未映射标准字典的正式结果（截至 to）；按原名过滤在服务层完成，规则与列表一致 -->
+    <select id="findFormalUnmapped" resultType="com.healthtrace.indicator.domain.TrendObservation">
+        SELECT <include refid="observationColumns"/>
+        <include refid="formalFrom"/>
+          AND o.metric_definition_id IS NULL
           AND o.examination_date &lt;= #{to}
         ORDER BY o.examination_date, o.id
     </select>

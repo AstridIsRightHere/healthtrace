@@ -194,7 +194,7 @@ onBeforeUnmount(() => {
 <template>
   <main class="home-page">
     <header class="home-header">
-      <RouterLink class="btn-secondary" :to="{ name: 'home' }">返回首页</RouterLink>
+      <RouterLink class="btn-ghost btn-small" :to="{ name: 'home' }">← 返回首页</RouterLink>
       <p class="brand">HealthTrace</p>
     </header>
 

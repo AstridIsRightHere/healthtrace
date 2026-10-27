@@ -294,7 +294,59 @@ class TrendServiceTest {
                 assertThat(m.count()).isEqualTo(2);
                 assertThat(m.groupCount()).isEqualTo(2);
                 assertThat(m.latestDate()).isEqualTo(LocalDate.of(2026, 10, 10));
+                assertThat(m.standard()).isTrue();
             });
+        }
+
+        private TrendObservation raw(String date, String name, String value, String unit) {
+            TrendObservation o = exact(date, value, unit);
+            o.setMetricCode(null);
+            o.setOriginalName(name);
+            return o;
+        }
+
+        @Test
+        void unmappedObservationsAreListedByOriginalName() {
+            given(profileMapper.findActiveByAccountAndProfile(7L, 5L)).willReturn(new ProfileRecord());
+            given(trendMapper.findAllDefinitions()).willReturn(List.of(wbc()));
+            given(trendMapper.findFormalByProfile(5L)).willReturn(List.of(
+                    exact("2026-10-01", "6.0", "10^9/L"),
+                    raw("2026-09-10", "★促甲状腺激素", "2.1", "uIU/mL"),
+                    raw("2026-10-10", "促甲状腺激素 ", "2.4", "uIU/mL")));
+
+            List<MetricSummary> metrics = service.listMetrics(7L, 5L);
+
+            assertThat(metrics).hasSize(2);
+            assertThat(metrics.get(1)).satisfies(m -> {
+                assertThat(m.code()).isEqualTo("RAW:促甲状腺激素");
+                assertThat(m.standardName()).isEqualTo("促甲状腺激素");
+                assertThat(m.count()).isEqualTo(2);
+                assertThat(m.standard()).isFalse();
+            });
+        }
+
+        @Test
+        void rawTrendOnlyIncludesSameNormalizedName() {
+            given(profileMapper.findActiveByAccountAndProfile(7L, 5L)).willReturn(new ProfileRecord());
+            given(trendMapper.findFormalUnmapped(5L, TODAY_CN)).willReturn(List.of(
+                    raw("2026-10-20", "★促甲状腺激素", "2.1", "uIU/mL"),
+                    raw("2026-10-21", "游离甲状腺素", "1.2", "ng/dL")));
+
+            TrendView view = service.getTrend(7L, 5L, "RAW:促甲状腺激素", "30d", null, null);
+
+            assertThat(view.metric().standardName()).isEqualTo("促甲状腺激素");
+            assertThat(view.groups()).singleElement()
+                    .satisfies(g -> assertThat(g.points()).hasSize(1));
+            verify(trendMapper, never()).findDefinitionByCode(any());
+        }
+
+        @Test
+        void otherProfileRawTrendIsNotFound() {
+            given(profileMapper.findActiveByAccountAndProfile(7L, 99L)).willReturn(null);
+            assertThatThrownBy(() -> service.getTrend(7L, 99L, "RAW:X", "30d", null, null))
+                    .isInstanceOfSatisfying(ApiException.class,
+                            e -> assertThat(e.getErrorCode()).isEqualTo(ErrorCode.PROFILE_NOT_FOUND));
+            verify(trendMapper, never()).findFormalUnmapped(anyLong(), any());
         }
     }
 }

@@ -68,7 +68,7 @@ public class ReportController {
     public List<ReportListItem> listReports(@AuthenticationPrincipal AccountPrincipal principal,
                                             @PathVariable long profileId,
                                             @RequestParam(name = "status", defaultValue = "DRAFT") String status) {
-        ReportListFilter filter = parseEnum(ReportListFilter.class, status, "status", "当前仅支持 status=DRAFT");
+        ReportListFilter filter = parseEnum(ReportListFilter.class, status, "status", "当前仅支持 status=DRAFT 或 CONFIRMED");
         return reportService.listReports(principal.accountId(), profileId, filter);
     }
 

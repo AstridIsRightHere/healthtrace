@@ -57,7 +57,10 @@ async function onLogout() {
         <h2 id="trend-entry-title">指标趋势</h2>
         <p class="field-hint">查看已确认结果随时间的变化，图表下方附完整数据表格。</p>
       </div>
-      <RouterLink class="btn-secondary btn-small" :to="{ name: 'trends' }">查看趋势</RouterLink>
+      <div class="trend-entry-actions">
+        <RouterLink class="btn-secondary btn-small" :to="{ name: 'trends' }">查看趋势</RouterLink>
+        <RouterLink class="btn-ghost btn-small" :to="{ name: 'report-compare' }">报告对比</RouterLink>
+      </div>
     </section>
     <UploadFab />
   </main>

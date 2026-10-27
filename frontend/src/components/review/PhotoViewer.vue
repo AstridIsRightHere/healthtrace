@@ -42,8 +42,8 @@ defineExpose({ select })
           v-for="(photo, i) in photos"
           :key="photo.id"
           type="button"
-          class="btn-small"
-          :class="{ 'is-active': i === index }"
+          class="range-btn"
+          :class="{ active: i === index }"
           :aria-pressed="i === index"
           @click="select(i)"
         >

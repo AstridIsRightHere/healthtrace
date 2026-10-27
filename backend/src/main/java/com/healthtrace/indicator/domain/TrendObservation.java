@@ -26,6 +26,8 @@ public class TrendObservation {
     private AbnormalFlag abnormalFlag;
     private String specimenText;
     private String methodText;
+    /** 报告原名；未映射到标准字典的结果按原名归为“其他项目”。 */
+    private String originalName;
 
     public Long getObservationId() { return observationId; }
     public void setObservationId(Long observationId) { this.observationId = observationId; }
@@ -55,4 +57,6 @@ public class TrendObservation {
     public void setSpecimenText(String specimenText) { this.specimenText = specimenText; }
     public String getMethodText() { return methodText; }
     public void setMethodText(String methodText) { this.methodText = methodText; }
+    public String getOriginalName() { return originalName; }
+    public void setOriginalName(String originalName) { this.originalName = originalName; }
 }

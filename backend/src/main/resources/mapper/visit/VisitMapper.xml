@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.healthtrace.visit.mapper.VisitMapper">
+
+    <sql id="visitColumns">
+        id, profile_id, created_by, visit_date, hospital_id, hospital_text, department, note, version,
+        created_at, updated_at
+    </sql>
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id" keyColumn="id">
+        INSERT INTO visit (profile_id, created_by, visit_date, hospital_id, hospital_text, department, note,
+                           version, created_at, updated_at)
+        VALUES (#{profileId}, #{createdBy}, #{visitDate}, #{hospitalId}, #{hospitalText}, #{department}, #{note},
+                #{version}, #{createdAt}, #{updatedAt})
+    </insert>
+
+    <select id="findById" resultType="com.healthtrace.visit.domain.Visit">
+        SELECT <include refid="visitColumns"/> FROM visit WHERE id = #{id}
+    </select>
+
+    <select id="findByProfile" resultType="com.healthtrace.visit.domain.Visit">
+        SELECT <include refid="visitColumns"/>
+        FROM visit
+        WHERE profile_id = #{profileId}
+        ORDER BY visit_date DESC, id DESC
+    </select>
+
+    <update id="update">
+        UPDATE visit
+        SET visit_date    = #{visit.visitDate},
+            hospital_text = #{visit.hospitalText},
+            department    = #{visit.department},
+            note          = #{visit.note},
+            version       = version + 1,
+            updated_at    = #{visit.updatedAt}
+        WHERE id = #{visit.id}
+          AND version = #{expectedVersion}
+    </update>
+
+    <delete id="delete">
+        DELETE FROM visit WHERE id = #{id}
+    </delete>
+
+    <insert id="link">
+        INSERT IGNORE INTO visit_report (visit_id, report_id, created_at)
+        VALUES (#{visitId}, #{reportId}, #{createdAt})
+    </insert>
+
+    <delete id="unlink">
+        DELETE FROM visit_report WHERE visit_id = #{visitId} AND report_id = #{reportId}
+    </delete>
+
+    <select id="findLinkedReports" resultType="com.healthtrace.visit.domain.LinkedReport">
+        SELECT vr.visit_id, r.id AS report_id, r.title, r.report_type, r.examination_date, r.processing_status
+        FROM visit_report vr
+        JOIN report r ON r.id = vr.report_id
+        WHERE r.visibility_status = 'NORMAL'
+          AND vr.visit_id IN
+        <foreach collection="visitIds" item="vid" open="(" separator="," close=")">#{vid}</foreach>
+        ORDER BY vr.visit_id, (r.examination_date IS NULL), r.examination_date DESC, r.id DESC
+    </select>
+</mapper>

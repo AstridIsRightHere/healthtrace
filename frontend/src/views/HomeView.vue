@@ -4,6 +4,7 @@ import { ref } from 'vue'
 import { RouterLink, useRouter } from 'vue-router'
 import { errorMessage } from '../api'
 import PendingReportList from '../components/home/PendingReportList.vue'
+import RecentVisits from '../components/home/RecentVisits.vue'
 import UploadFab from '../components/home/UploadFab.vue'
 import { useAuthStore } from '../stores/auth'
 import { useProfileStore } from '../stores/profile'
@@ -51,6 +52,8 @@ async function onLogout() {
     </section>
 
     <PendingReportList v-if="profile.profile" :profile-id="profile.profile.id" />
+
+    <RecentVisits v-if="profile.profile" :profile-id="profile.profile.id" />
 
     <section class="home-card trend-entry" aria-labelledby="trend-entry-title">
       <div>

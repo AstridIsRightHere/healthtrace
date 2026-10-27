@@ -2,6 +2,12 @@
 server:
   # 只绑定本机回环地址，不对局域网暴露（与 docker-compose.yml 中 MySQL 一致）
   address: 127.0.0.1
+  servlet:
+    session:
+      cookie:
+        # 本机开发走 http://localhost（Vite 代理），Secure Cookie 在部分浏览器下会被丢弃导致无法保持登录。
+        # 仅 dev 关闭；公共配置与 test/prod 仍为 secure: true（ADR-007、29-环境配置说明）。
+        secure: false
 
 logging:
   level:

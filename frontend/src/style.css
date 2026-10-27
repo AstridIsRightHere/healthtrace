@@ -551,6 +551,53 @@ legend {
   margin-top: 24px;
 }
 
+/*
+ * 首页卡片纵向节奏：统一用容器 gap（8px 栅格，桌面 24px / 移动 20px），
+ * 不再依赖各卡片自带 margin-top（此前“最近就诊”为 0、“指标趋势”16px，间距不一致）。
+ * 底部预留悬浮上传按钮高度，避免遮挡最后一张卡片。
+ */
+.home-dashboard {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  padding-bottom: 104px;
+}
+
+.home-dashboard > .home-header {
+  margin-bottom: 8px;
+}
+
+.home-dashboard > .home-card {
+  margin: 0;
+}
+
+.home-dashboard .home-card h2 {
+  margin: 0;
+  font-size: 20px;
+  line-height: 1.4;
+  color: var(--text-h);
+}
+
+@media (max-width: 640px) {
+  .home-dashboard {
+    gap: 20px;
+    padding-bottom: 96px;
+  }
+
+  .home-dashboard > .home-card {
+    padding: 24px 20px;
+  }
+
+  /* 提高优先级：基础 .trend-entry 规则在后文定义 */
+  .home-dashboard .trend-entry {
+    grid-template-columns: 1fr;
+  }
+
+  .home-dashboard .trend-entry-actions {
+    justify-content: flex-start;
+  }
+}
+
 .upload-fab {
   position: fixed;
   right: 24px;

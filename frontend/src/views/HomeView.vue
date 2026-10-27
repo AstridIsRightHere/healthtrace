@@ -33,7 +33,7 @@ async function onLogout() {
 </script>
 
 <template>
-  <main class="home-page">
+  <main class="home-page home-dashboard">
     <header class="home-header">
       <p class="brand">HealthTrace</p>
       <button class="btn-secondary" type="button" :disabled="loggingOut" @click="onLogout">

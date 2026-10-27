@@ -2,13 +2,25 @@
 // 草稿核对页（FR-006/FR-007/FR-014/FR-015）：左侧原图对照，右侧可编辑指标表；整页确认 + 二次确认后才进入图表
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { RouterLink, useRoute, useRouter } from 'vue-router'
-import { errorMessage, fieldErrors } from '../api'
+import { isAxiosError } from 'axios'
+import { errorMessage, fieldErrors, type ApiErrorBody } from '../api'
 import { ocrApi, ocrErrorText, type DraftView } from '../api/ocr'
 import PhotoViewer from '../components/review/PhotoViewer.vue'
 import ObservationTable from '../components/review/ObservationTable.vue'
 import RawTextPanel from '../components/review/RawTextPanel.vue'
 import ConfirmDialog from '../components/review/ConfirmDialog.vue'
 import type { EditableRow } from '../components/review/types'
+import { revisionApi, type RevisionView } from '../api/revision'
+import {
+  REASON_MAX_LENGTH,
+  buildRevisePayload,
+  formatChange,
+  formatDateChange,
+  formatRevisionTime,
+  formatVersions,
+  hasNoChange,
+  sortRevisions,
+} from '../utils/revision'
 
 const POLL_INTERVAL_MS = 2000
 const POLL_TIMEOUT_MS = 60_000
@@ -38,6 +50,15 @@ const recognizing = computed(() => status.value === 'RECOGNIZING')
 const failed = computed(() => status.value === 'FAILED')
 const editable = computed(() => status.value === 'PENDING_CONFIRMATION')
 const confirmed = computed(() => status.value === 'CONFIRMED')
+// 正式报告修改（FR-014）：进入编辑模式后复用草稿的表格与校验
+const revising = ref(false)
+const reason = ref('')
+const revisions = ref<RevisionView[]>([])
+const revisionsLoaded = ref(false)
+const revisionsError = ref('')
+const toast = ref('')
+let toastTimer: ReturnType<typeof setTimeout> | null = null
+const tableEditable = computed(() => editable.value || (confirmed.value && revising.value))
 const failureText = computed(() => ocrErrorText(draft.value?.ocrJob?.errorCode))
 const retryHint = computed(() => {
   const job = draft.value?.ocrJob
@@ -68,6 +89,7 @@ async function load() {
   try {
     apply(await ocrApi.draft(reportId))
     loadError.value = ''
+    if (confirmed.value && !revisionsLoaded.value) void loadRevisions()
   } catch (error) {
     loadError.value = errorMessage(error, '报告加载失败，请稍后刷新')
   } finally {
@@ -199,8 +221,110 @@ async function onConfirm() {
   }
 }
 
+async function loadRevisions() {
+  try {
+    revisions.value = sortRevisions(await revisionApi.list(reportId))
+    revisionsError.value = ''
+  } catch (error) {
+    revisionsError.value = errorMessage(error, '修改记录加载失败，请稍后刷新')
+  } finally {
+    revisionsLoaded.value = true
+  }
+}
+
+function showToast(text: string) {
+  if (toastTimer) clearTimeout(toastTimer)
+  toast.value = text
+  toastTimer = setTimeout(() => {
+    toast.value = ''
+    toastTimer = null
+  }, 3000)
+}
+
+function onStartRevise() {
+  message.value = ''
+  errors.value = {}
+  reason.value = ''
+  revising.value = true
+}
+
+/** 取消修改：恢复为已保存的内容 */
+function onCancelRevise() {
+  if (submitting.value) return
+  if (draft.value) apply(draft.value)
+  revising.value = false
+  reason.value = ''
+  errors.value = {}
+  message.value = ''
+}
+
+function onRequestRevise() {
+  message.value = ''
+  const view = draft.value
+  if (!view) return
+  if (!validate()) {
+    message.value = '还有内容需要补充，请检查标红的字段。'
+    return
+  }
+  if (reason.value.trim().length > REASON_MAX_LENGTH) {
+    errors.value = { reason: `修改原因最多 ${REASON_MAX_LENGTH} 字` }
+    return
+  }
+  if (hasNoChange(view.observations, view.report.examinationDate, rows.value, examinationDate.value)) {
+    message.value = '没有需要保存的修改'
+    return
+  }
+  showConfirm.value = true
+}
+
+function reviseErrorText(error: unknown): string {
+  if (isAxiosError<ApiErrorBody>(error)) {
+    const data = error.response?.data
+    if (error.response?.status === 409 && data?.code === 'HT-3002') return '内容已被修改，请刷新后重试'
+    if (error.response?.status === 400 && data?.fieldErrors?.some((f) => f.reason === 'NO_CHANGE')) {
+      return '没有需要保存的修改'
+    }
+  }
+  return errorMessage(error, '保存修改失败，请稍后重试')
+}
+
+async function onRevise() {
+  const view = draft.value
+  if (!view || submitting.value) return
+  submitting.value = true
+  try {
+    await revisionApi.revise(
+      reportId,
+      buildRevisePayload(view.report.version, examinationDate.value, reason.value, rows.value),
+    )
+    showConfirm.value = false
+    revising.value = false
+    reason.value = ''
+    errors.value = {}
+    await load()
+    await loadRevisions()
+    showToast('已保存修改')
+  } catch (error) {
+    showConfirm.value = false
+    const fields = fieldErrors(error)
+    delete fields.observations
+    errors.value = fields
+    message.value = reviseErrorText(error)
+  } finally {
+    submitting.value = false
+  }
+}
+
+function onDialogConfirm() {
+  if (revising.value) void onRevise()
+  else void onConfirm()
+}
+
 onMounted(load)
-onBeforeUnmount(stopPoll)
+onBeforeUnmount(() => {
+  stopPoll()
+  if (toastTimer) clearTimeout(toastTimer)
+})
 </script>
 
 <template>
@@ -254,7 +378,20 @@ onBeforeUnmount(stopPoll)
           </div>
 
           <template v-if="editable || confirmed">
-            <p v-if="confirmed" class="notice notice-success" role="status">这份报告已确认保存。</p>
+            <div v-if="confirmed" class="revise-head">
+              <p class="notice notice-success" role="status">
+                {{ revising ? '正在修改这份报告，保存后会生成一条修改记录。' : '这份报告已确认保存。' }}
+              </p>
+              <button
+                v-if="!revising"
+                type="button"
+                class="btn-ghost"
+                data-testid="report-edit"
+                @click="onStartRevise"
+              >
+                修改结果
+              </button>
+            </div>
 
             <div class="field">
               <label for="review-date">检查日期（必填）</label>
@@ -264,7 +401,7 @@ onBeforeUnmount(stopPoll)
                 type="date"
                 required
                 :max="today"
-                :disabled="!editable || submitting"
+                :disabled="!tableEditable || submitting"
                 :aria-invalid="errors.examinationDate ? 'true' : undefined"
                 :aria-describedby="errors.examinationDate ? 'review-date-error' : undefined"
               />
@@ -276,12 +413,51 @@ onBeforeUnmount(stopPoll)
             <ObservationTable
               :rows="rows"
               :errors="errors"
-              :disabled="!editable || submitting"
+              :disabled="!tableEditable || submitting"
               @edit="onEdit"
               @remove="onRemove"
               @add="onAdd"
             />
             <p v-if="errors.observations" class="field-error">{{ errors.observations }}</p>
+
+            <template v-if="confirmed && revising">
+              <div class="field">
+                <label for="revise-reason">修改原因（选填）</label>
+                <textarea
+                  id="revise-reason"
+                  v-model="reason"
+                  rows="3"
+                  :maxlength="REASON_MAX_LENGTH"
+                  placeholder="如：识别时数值看错"
+                  :disabled="submitting"
+                  :aria-invalid="errors.reason ? 'true' : undefined"
+                  aria-describedby="revise-reason-hint"
+                  data-testid="report-edit-reason"
+                ></textarea>
+                <p id="revise-reason-hint" class="field-hint">{{ reason.length }}/{{ REASON_MAX_LENGTH }}</p>
+                <p v-if="errors.reason" class="field-error">{{ errors.reason }}</p>
+              </div>
+              <div class="review-actions">
+                <button
+                  type="button"
+                  class="btn-primary"
+                  :disabled="submitting"
+                  data-testid="report-edit-save"
+                  @click="onRequestRevise"
+                >
+                  保存修改
+                </button>
+                <button
+                  type="button"
+                  class="btn-ghost"
+                  :disabled="submitting"
+                  data-testid="report-edit-cancel"
+                  @click="onCancelRevise"
+                >
+                  取消
+                </button>
+              </div>
+            </template>
 
             <RawTextPanel v-if="draft.rawText" :text="draft.rawText" />
           </template>
@@ -289,6 +465,30 @@ onBeforeUnmount(stopPoll)
           <p v-if="message" class="notice notice-error" role="alert">{{ message }}</p>
         </section>
       </div>
+
+      <section v-if="confirmed" class="home-card revision-section" aria-labelledby="revision-title">
+        <h2 id="revision-title">修改记录</h2>
+        <p v-if="!revisionsLoaded" class="field-hint" role="status">加载中…</p>
+        <p v-else-if="revisionsError" class="notice notice-error" role="alert">{{ revisionsError }}</p>
+        <p v-else-if="revisions.length === 0" class="field-hint">暂无修改记录</p>
+        <ol v-else class="revision-list" data-testid="revision-list">
+          <li v-for="item in revisions" :key="item.id" class="revision-item" data-testid="revision-item">
+            <p class="revision-meta">
+              <time :datetime="item.createdAt">{{ formatRevisionTime(item.createdAt) }}</time>
+              <span>{{ formatVersions(item) }}</span>
+            </p>
+            <p class="revision-reason">{{ item.reason?.trim() || '未填写原因' }}</p>
+            <ul class="revision-changes">
+              <li v-if="formatDateChange(item.examinationDate)">{{ formatDateChange(item.examinationDate) }}</li>
+              <li v-for="(change, i) in item.changes" :key="i">{{ formatChange(change) }}</li>
+            </ul>
+          </li>
+        </ol>
+      </section>
+
+      <Transition name="toast">
+        <p v-if="toast" class="toast notice-success" role="status" data-testid="report-edit-toast">{{ toast }}</p>
+      </Transition>
 
       <div v-if="editable" class="review-bar">
         <button type="button" class="btn-primary review-submit" :disabled="submitting" @click="onRequestConfirm">
@@ -301,7 +501,10 @@ onBeforeUnmount(stopPoll)
         :count="rows.length"
         :examination-date="examinationDate"
         :submitting="submitting"
-        @confirm="onConfirm"
+        :title="revising ? '保存对这份报告的修改？' : undefined"
+        :description="revising ? '修改会生成一条修改记录，原图和 OCR 原文不会被改写。' : undefined"
+        :confirm-text="revising ? '保存修改' : undefined"
+        @confirm="onDialogConfirm"
         @cancel="showConfirm = false"
       />
     </template>

@@ -71,7 +71,8 @@ class ReportServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new ReportService(reportMapper, photoMapper, profileMapper, accountMapper, storage, clock);
+        service = new ReportService(reportMapper, photoMapper, profileMapper, accountMapper, storage,
+                mock(com.healthtrace.rights.audit.AuditService.class), clock);
         given(profileMapper.findActiveByAccountAndProfile(ACCOUNT, PROFILE)).willReturn(new ProfileRecord());
         given(accountMapper.findById(ACCOUNT)).willReturn(account(true));
         given(reportMapper.findById(REPORT)).willReturn(report(ProcessingStatus.UPLOADING));

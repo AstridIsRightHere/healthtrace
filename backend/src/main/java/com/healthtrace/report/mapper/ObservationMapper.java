@@ -37,4 +37,10 @@ public interface ObservationMapper {
 
     /** 彻底删除未确认报告时清理其全部观测值（此时只可能是草稿）。 */
     int deleteByReport(@Param("reportId") long reportId);
+
+    /** FR-014：更新正式结果的可编辑字段并清空标准指标映射（只作用于 FORMAL）。 */
+    int updateFormal(Observation observation);
+
+    /** FR-014：修改时移除某一正式结果；旧值保存在 report_revision。 */
+    int deleteFormalById(@Param("reportId") long reportId, @Param("id") long id);
 }

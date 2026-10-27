@@ -25,6 +25,8 @@ import com.healthtrace.report.service.ReportViews.PhotoVariant;
 import com.healthtrace.report.service.ReportViews.PhotoView;
 import com.healthtrace.report.service.ReportViews.ReportListItem;
 import com.healthtrace.report.service.ReportViews.ReportView;
+import com.healthtrace.rights.audit.AuditAction;
+import com.healthtrace.rights.audit.AuditService;
 import com.healthtrace.storage.StorageService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -66,15 +68,18 @@ public class ReportService {
     private final ProfileMapper profileMapper;
     private final AccountMapper accountMapper;
     private final StorageService storageService;
+    private final AuditService auditService;
     private final Clock clock;
 
     public ReportService(ReportMapper reportMapper, PhotoMapper photoMapper, ProfileMapper profileMapper,
-                         AccountMapper accountMapper, StorageService storageService, Clock clock) {
+                         AccountMapper accountMapper, StorageService storageService, AuditService auditService,
+                         Clock clock) {
         this.reportMapper = reportMapper;
         this.photoMapper = photoMapper;
         this.profileMapper = profileMapper;
         this.accountMapper = accountMapper;
         this.storageService = storageService;
+        this.auditService = auditService;
         this.clock = clock;
     }
 
@@ -101,6 +106,7 @@ public class ReportService {
         report.setCreatedAt(now);
         report.setUpdatedAt(now);
         reportMapper.insert(report);
+        auditService.success(accountId, AuditAction.REPORT_CREATE, AuditService.token("report", report.getId()));
         return toView(report);
     }
 
@@ -196,6 +202,7 @@ public class ReportService {
         }
         photoMapper.updateStorageStatus(photo.getId(), StorageStatus.COMPLETE, now());
         photo.setStorageStatus(StorageStatus.COMPLETE);
+        auditService.success(accountId, AuditAction.REPORT_PHOTO_UPLOAD, AuditService.token("photo", photo.getId()));
         return PhotoUploadResult.uploaded(toView(photo));
     }
 

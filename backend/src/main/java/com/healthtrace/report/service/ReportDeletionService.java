@@ -9,6 +9,8 @@ import com.healthtrace.report.mapper.ObservationMapper;
 import com.healthtrace.report.mapper.OcrJobMapper;
 import com.healthtrace.report.mapper.PhotoMapper;
 import com.healthtrace.report.mapper.ReportMapper;
+import com.healthtrace.rights.audit.AuditAction;
+import com.healthtrace.rights.audit.AuditService;
 import com.healthtrace.storage.StorageService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -43,16 +45,18 @@ public class ReportDeletionService {
     private final OcrJobMapper ocrJobMapper;
     private final ObservationMapper observationMapper;
     private final StorageService storageService;
+    private final AuditService auditService;
 
     public ReportDeletionService(ReportAccess access, ReportMapper reportMapper, PhotoMapper photoMapper,
                                  OcrJobMapper ocrJobMapper, ObservationMapper observationMapper,
-                                 StorageService storageService) {
+                                 StorageService storageService, AuditService auditService) {
         this.access = access;
         this.reportMapper = reportMapper;
         this.photoMapper = photoMapper;
         this.ocrJobMapper = ocrJobMapper;
         this.observationMapper = observationMapper;
         this.storageService = storageService;
+        this.auditService = auditService;
     }
 
     @Transactional
@@ -77,6 +81,7 @@ public class ReportDeletionService {
             // 行锁下理论上不会发生；兜底防止误删已变更状态的报告
             throw new ApiException(ErrorCode.REPORT_STATE_CONFLICT);
         }
+        auditService.success(accountId, AuditAction.REPORT_DELETE, AuditService.token("report", reportId));
 
         List<String> keys = new ArrayList<>();
         for (Photo photo : photos) {

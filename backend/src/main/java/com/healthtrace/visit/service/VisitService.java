@@ -7,6 +7,8 @@ import com.healthtrace.profile.mapper.ProfileMapper;
 import com.healthtrace.report.domain.Report;
 import com.healthtrace.report.domain.VisibilityStatus;
 import com.healthtrace.report.mapper.ReportMapper;
+import com.healthtrace.rights.audit.AuditAction;
+import com.healthtrace.rights.audit.AuditService;
 import com.healthtrace.visit.domain.LinkedReport;
 import com.healthtrace.visit.domain.Visit;
 import com.healthtrace.visit.mapper.VisitMapper;
@@ -42,12 +44,15 @@ public class VisitService {
     private final VisitMapper visitMapper;
     private final ReportMapper reportMapper;
     private final ProfileMapper profileMapper;
+    private final AuditService auditService;
     private final Clock clock;
 
-    public VisitService(VisitMapper visitMapper, ReportMapper reportMapper, ProfileMapper profileMapper, Clock clock) {
+    public VisitService(VisitMapper visitMapper, ReportMapper reportMapper, ProfileMapper profileMapper,
+                        AuditService auditService, Clock clock) {
         this.visitMapper = visitMapper;
         this.reportMapper = reportMapper;
         this.profileMapper = profileMapper;
+        this.auditService = auditService;
         this.clock = clock;
     }
 
@@ -77,6 +82,7 @@ public class VisitService {
         visit.setCreatedAt(now);
         visit.setUpdatedAt(now);
         visitMapper.insert(visit);
+        auditService.success(accountId, AuditAction.VISIT_CREATE, AuditService.token("visit", visit.getId()));
         return toViews(List.of(visit)).getFirst();
     }
 
@@ -88,6 +94,7 @@ public class VisitService {
         if (visitMapper.update(visit, expectedVersion) == 0) {
             throw new ApiException(ErrorCode.VERSION_CONFLICT);
         }
+        auditService.success(accountId, AuditAction.VISIT_UPDATE, AuditService.token("visit", visitId));
         return get(accountId, visitId);
     }
 
@@ -95,6 +102,7 @@ public class VisitService {
     public void delete(long accountId, long visitId) {
         requireOwnedVisit(accountId, visitId);
         visitMapper.delete(visitId);
+        auditService.success(accountId, AuditAction.VISIT_DELETE, AuditService.token("visit", visitId));
     }
 
     /** 关联同档案报告（幂等）；报告不存在、不可见或属于其他档案均 404。 */
@@ -103,6 +111,7 @@ public class VisitService {
         Visit visit = requireOwnedVisit(accountId, visitId);
         requireSameProfileReport(visit, reportId);
         visitMapper.link(visitId, reportId, now());
+        auditService.success(accountId, AuditAction.VISIT_LINK_REPORT, AuditService.token("visit", visitId));
         return get(accountId, visitId);
     }
 
@@ -112,6 +121,7 @@ public class VisitService {
         Visit visit = requireOwnedVisit(accountId, visitId);
         requireSameProfileReport(visit, reportId);
         visitMapper.unlink(visitId, reportId);
+        auditService.success(accountId, AuditAction.VISIT_UNLINK_REPORT, AuditService.token("visit", visitId));
         return get(accountId, visitId);
     }
 

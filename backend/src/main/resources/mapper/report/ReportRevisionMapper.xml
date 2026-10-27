@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.healthtrace.report.mapper.ReportRevisionMapper">
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id" keyColumn="id">
+        INSERT INTO report_revision (report_id, actor_account_id, from_version, to_version, change_payload, reason,
+                                     created_at)
+        VALUES (#{reportId}, #{actorAccountId}, #{fromVersion}, #{toVersion}, #{changePayload}, #{reason},
+                #{createdAt})
+    </insert>
+
+    <select id="findByReport" resultType="com.healthtrace.report.domain.ReportRevision">
+        SELECT id, report_id, actor_account_id, from_version, to_version, change_payload, reason, created_at
+        FROM report_revision
+        WHERE report_id = #{reportId}
+        ORDER BY to_version DESC, id DESC
+    </select>
+</mapper>

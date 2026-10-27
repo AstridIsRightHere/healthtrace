@@ -54,6 +54,9 @@ class AccountSecurityWebTest {
     @MockitoBean
     private AccountService accountService;
 
+    @MockitoBean
+    private com.healthtrace.rights.audit.AuditService auditService;
+
     private String csrfToken(MockHttpSession session) throws Exception {
         MvcResult result = mvc.perform(get("/api/v1/csrf-token").session(session))
                 .andExpect(status().isOk())

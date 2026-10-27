@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.healthtrace.rights.consent.ConsentMapper">
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id" keyColumn="id">
+        INSERT INTO consent_record (account_id, profile_id, purpose, subject_role, notice_version, decision,
+                                    provider_scope, recorded_at)
+        VALUES (#{accountId}, #{profileId}, #{purpose}, #{subjectRole}, #{noticeVersion}, #{decision},
+                #{providerScope}, #{recordedAt})
+    </insert>
+</mapper>

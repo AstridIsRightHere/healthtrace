@@ -1333,6 +1333,220 @@ legend {
   }
 }
 
+/* 就诊时间线（FR-013） */
+.visit-page textarea {
+  width: 100%;
+  padding: 11px 14px;
+  font: inherit;
+  color: var(--text-h);
+  background: #fffdfb;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  resize: vertical;
+}
+
+.visit-page textarea:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+  outline: none;
+}
+
+.visit-count {
+  font-size: 14px;
+  color: var(--muted);
+}
+
+.visit-form-card {
+  margin-bottom: 24px;
+}
+
+.visit-form-entry,
+.visit-form {
+  display: grid;
+  gap: 14px;
+}
+
+.visit-form-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+  align-items: center;
+}
+
+.visit-form-actions .btn-primary {
+  width: auto;
+}
+
+.visit-year {
+  margin-bottom: 24px;
+}
+
+.visit-year-title {
+  margin: 0 0 12px;
+  font-size: 18px;
+  color: var(--text-h);
+}
+
+.visit-timeline {
+  list-style: none;
+  margin: 0;
+  padding: 0 0 0 20px;
+  border-left: 2px solid var(--border);
+  display: grid;
+  gap: 16px;
+}
+
+.visit-item {
+  position: relative;
+}
+
+.visit-dot {
+  position: absolute;
+  left: -28px;
+  top: 22px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--accent-hover);
+  border: 3px solid var(--bg);
+}
+
+.visit-card {
+  gap: 10px;
+  min-width: 0;
+}
+
+.visit-card-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.visit-card-head > div:first-child {
+  min-width: 0;
+}
+
+.visit-date {
+  margin: 0;
+  font-size: 14px;
+  color: var(--muted);
+}
+
+.visit-title {
+  margin: 2px 0 0;
+  font-size: 17px;
+  color: var(--text-h);
+  overflow-wrap: anywhere;
+}
+
+.visit-card-actions {
+  display: flex;
+  gap: 12px;
+  flex-shrink: 0;
+}
+
+.visit-note {
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.visit-confirm {
+  display: grid;
+  gap: 8px;
+}
+
+.visit-confirm p {
+  margin: 0;
+}
+
+.visit-danger {
+  color: var(--error-text);
+}
+
+.visit-reports {
+  display: grid;
+  gap: 8px;
+}
+
+.visit-report-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+}
+
+.visit-report {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+
+.visit-report-name {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.visit-report .text-link:last-child {
+  flex-shrink: 0;
+}
+
+.visit-link-box {
+  display: grid;
+  gap: 10px;
+}
+
+.visit-reports > .btn-ghost {
+  justify-self: start;
+}
+
+.recent-visits-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+
+.recent-visits-head h2 {
+  margin: 0;
+}
+
+.recent-visits-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+
+.recent-visit-item {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 12px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.recent-visit-item:last-child {
+  border-bottom: none;
+}
+
+.recent-visit-date {
+  font-size: 14px;
+  color: var(--muted);
+}
+
+.recent-visit-title {
+  font-weight: 600;
+  color: var(--text-h);
+  overflow-wrap: anywhere;
+}
+
 @media (prefers-reduced-motion: reduce) {
   * {
     transition: none !important;

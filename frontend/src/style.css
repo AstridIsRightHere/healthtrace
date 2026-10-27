@@ -245,6 +245,15 @@ input[aria-invalid='true'] {
   text-underline-offset: 2px;
 }
 
+/* 文字链接样式也用于 <button>：去掉按钮默认外观 */
+button.text-link {
+  padding: 0;
+  font-family: inherit;
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+
 .text-link:hover {
   color: var(--text);
 }
@@ -817,7 +826,16 @@ legend {
 }
 
 .trend-metric select {
+  width: 100%;
+  max-width: 100%;
   min-height: 44px;
+  text-overflow: ellipsis;
+}
+
+/* 报告原名可能很长，避免撑破移动端布局 */
+.trend-page .field-hint,
+.trend-page .notice {
+  overflow-wrap: anywhere;
 }
 
 .trend-ranges,

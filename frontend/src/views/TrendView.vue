@@ -7,6 +7,7 @@ import { errorMessage } from '../api'
 import { trendApi, type MetricSummary, type TrendRangeKey, type TrendView } from '../api/trend'
 import { useProfileStore } from '../stores/profile'
 import { buildTrendOption, changeText, flagText, referenceText } from '../utils/trendOption'
+import { isRawMetric, metricOptionLabel, pickDefaultRange } from '../utils/trendRange'
 
 // 图表组件按需加载，ECharts 不进入首屏包
 const BaseChart = defineAsyncComponent(() => import('../components/charts/BaseChart.vue'))
@@ -28,9 +29,9 @@ const metricsLoading = ref(true)
 const metricsError = ref('')
 
 const metricCode = ref<string>(typeof route.query.metric === 'string' ? route.query.metric : '')
-const rangeKey = ref<TrendRangeKey>(
-  RANGES.some((r) => r.key === route.query.range) ? (route.query.range as TrendRangeKey) : '30d',
-)
+// URL 显式指定区间时尊重用户选择；否则在指标加载后按最近结果日期自动选默认区间
+const rangeFromUrl = RANGES.some((r) => r.key === route.query.range)
+const rangeKey = ref<TrendRangeKey>(rangeFromUrl ? (route.query.range as TrendRangeKey) : '30d')
 const customFrom = ref(typeof route.query.from === 'string' ? route.query.from : '')
 const customTo = ref(typeof route.query.to === 'string' ? route.query.to : '')
 
@@ -149,6 +150,10 @@ onMounted(async () => {
     if (!metrics.value.some((m) => m.code === metricCode.value)) {
       metricCode.value = metrics.value[0]?.code ?? ''
     }
+    if (!rangeFromUrl) {
+      const selected = metrics.value.find((m) => m.code === metricCode.value)
+      rangeKey.value = pickDefaultRange(selected?.latestDate)
+    }
     // metricCode 未变化时 watch 不会触发，这里主动加载一次
     void loadTrend()
   } catch (error) {
@@ -179,7 +184,7 @@ onMounted(async () => {
             <span>指标</span>
             <select v-model="metricCode">
               <option v-for="m in metrics" :key="m.code" :value="m.code">
-                {{ m.standardName }}（{{ m.count }} 次）
+                {{ metricOptionLabel(m) }}
               </option>
             </select>
           </label>
@@ -218,7 +223,9 @@ onMounted(async () => {
 
         <template v-else-if="trend">
           <p class="field-hint">
-            {{ trend.range.from }} 至 {{ trend.range.to }} · 标准单位 {{ trend.metric.standardUnit }}
+            {{ trend.range.from }} 至 {{ trend.range.to }}
+            <template v-if="!isRawMetric(trend.metric.code)"> · 标准单位 {{ trend.metric.standardUnit }}</template>
+            <template v-else> · 暂未纳入标准指标字典，按报告原名汇总</template>
           </p>
 
           <div v-if="trend.unitWarning" class="notice" role="status">
@@ -244,18 +251,18 @@ onMounted(async () => {
           <p v-if="trend.groups.length === 0" class="field-hint">这个时间区间内没有该指标的结果。</p>
 
           <template v-else-if="currentGroup">
-            <p v-if="!currentGroup.matchesStandardUnit" class="field-hint">
+            <p v-if="!isRawMetric(trend.metric.code) && !currentGroup.matchesStandardUnit" class="field-hint">
               本组单位为“{{ currentGroup.unitText || '未标注' }}”，与标准单位不同，数值按原报告显示。
             </p>
 
+            <p v-if="currentGroup.points.length === 1" class="notice" role="status">
+              目前只有 1 次结果，暂不能形成趋势。再上传并确认同类报告后，这里会连成折线。
+            </p>
             <BaseChart
-              v-if="chartOption && currentGroup.points.length > 1"
+              v-if="chartOption"
               :option="chartOption"
               :aria-label="`${trend.metric.standardName}趋势图，完整数据见下方表格`"
             />
-            <p v-else-if="currentGroup.points.length === 1" class="notice" role="status">
-              目前只有 1 次结果，暂不能形成趋势。
-            </p>
             <p v-else class="field-hint">本组没有可画图的精确数值，结果见下方表格。</p>
 
             <p class="trend-legend field-hint">

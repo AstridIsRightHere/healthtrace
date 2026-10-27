@@ -12,6 +12,8 @@ export interface MetricSummary {
   count: number
   latestDate: string | null
   groupCount: number
+  /** false：暂未纳入标准字典、按报告原名汇总的项目（code 以 RAW: 开头） */
+  standard: boolean
 }
 
 export interface MetricInfo {

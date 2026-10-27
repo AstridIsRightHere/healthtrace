@@ -48,6 +48,8 @@ public class TrendService {
     static final ZoneId BUSINESS_ZONE = ZoneId.of("Asia/Shanghai");
     static final String NOTE_PREVIOUS_ZERO = "PREVIOUS_ZERO";
     static final String NOTE_SAME_DAY = "SAME_DAY_AMBIGUOUS";
+    /** 未纳入标准字典的项目 code 前缀（RAW: + 归一后的报告原名）。 */
+    static final String RAW_PREFIX = "RAW:";
 
     private final TrendMapper trendMapper;
     private final ProfileMapper profileMapper;
@@ -63,7 +65,7 @@ public class TrendService {
         requireProfileAccess(accountId, profileId);
         Map<String, List<TrendObservation>> byCode = new LinkedHashMap<>();
         for (TrendObservation o : trendMapper.findFormalByProfile(profileId)) {
-            byCode.computeIfAbsent(o.getMetricCode(), k -> new ArrayList<>()).add(o);
+            byCode.computeIfAbsent(metricKey(o), k -> new ArrayList<>()).add(o);
         }
         Map<String, MetricDefinition> definitions = new HashMap<>();
         for (MetricDefinition d : trendMapper.findAllDefinitions()) {
@@ -71,27 +73,66 @@ public class TrendService {
         }
         List<MetricSummary> result = new ArrayList<>();
         for (Map.Entry<String, List<TrendObservation>> e : byCode.entrySet()) {
-            MetricDefinition d = definitions.get(e.getKey());
-            if (d == null) {
-                continue;
-            }
             List<TrendObservation> rows = e.getValue();
             LocalDate latest = rows.stream().map(TrendObservation::getExaminationDate)
                     .max(Comparator.naturalOrder()).orElse(null);
             Set<String> keys = new HashSet<>();
             rows.forEach(o -> keys.add(groupKey(o)));
+            if (e.getKey().startsWith(RAW_PREFIX)) {
+                // 未纳入标准字典的项目：按报告原名汇总，单位取最近一次的写法，仅作展示
+                TrendObservation last = rows.get(rows.size() - 1);
+                result.add(new MetricSummary(e.getKey(), displayName(last.getOriginalName()),
+                        blankToEmpty(last.getUnitText()), rows.size(), latest, keys.size(), false));
+                continue;
+            }
+            MetricDefinition d = definitions.get(e.getKey());
+            if (d == null) {
+                continue;
+            }
             result.add(new MetricSummary(d.getCode(), d.getStandardName(), d.getStandardUnit(), rows.size(),
-                    latest, keys.size()));
+                    latest, keys.size(), true));
         }
         return result;
+    }
+
+    /** 列表/趋势共用的归组 code：已映射用标准 code，未映射用 RAW: + 归一后的原名。 */
+    static String metricKey(TrendObservation o) {
+        if (o.getMetricCode() != null && !o.getMetricCode().isBlank()) {
+            return o.getMetricCode();
+        }
+        return RAW_PREFIX + normalizeName(o.getOriginalName());
+    }
+
+    /** 原名归一：去空白、去报告中常见的 ★☆*※ 标记、全角转半角括号、转大写；不做同义合并（DEC-015）。 */
+    static String normalizeName(String name) {
+        if (name == null) {
+            return "";
+        }
+        return name.replaceAll("[\\s\\u3000\\u00A0★☆*※]+", "")
+                .replace('（', '(').replace('）', ')')
+                .toUpperCase(java.util.Locale.ROOT);
+    }
+
+    static String displayName(String name) {
+        if (name == null) {
+            return "";
+        }
+        return name.replaceAll("^[\\s\\u3000★☆*※]+", "").trim();
+    }
+
+    private static String blankToEmpty(String s) {
+        return s == null ? "" : s.trim();
     }
 
     public TrendView getTrend(long accountId, long profileId, String metricCode, String rangeValue,
                               LocalDate customFrom, LocalDate customTo) {
         requireProfileAccess(accountId, profileId);
         DateRange range = resolveRange(rangeValue, customFrom, customTo);
-        MetricDefinition definition = metricCode == null || metricCode.isBlank()
-                ? null : trendMapper.findDefinitionByCode(metricCode.trim());
+        String code = metricCode == null ? "" : metricCode.trim();
+        if (code.startsWith(RAW_PREFIX)) {
+            return getRawTrend(profileId, code, range);
+        }
+        MetricDefinition definition = code.isEmpty() ? null : trendMapper.findDefinitionByCode(code);
         if (definition == null) {
             throw validation("metricCode", "UNKNOWN", "不支持的指标");
         }
@@ -99,6 +140,29 @@ public class TrendService {
         List<TrendGroup> groups = buildGroups(rows, definition.getStandardUnit(), range);
         MetricInfo metric = new MetricInfo(definition.getCode(), definition.getStandardName(),
                 definition.getStandardUnit(), definition.getComparabilityNote());
+        return new TrendView(metric, range, groups, groups.size() > 1);
+    }
+
+    /**
+     * 未纳入标准字典的项目：只按“归一后的报告原名”精确归组，不做同义合并；
+     * 没有标准单位，可比组仍按单位/标本/方法区分。
+     */
+    private TrendView getRawTrend(long profileId, String code, DateRange range) {
+        String key = code.substring(RAW_PREFIX.length());
+        if (key.isEmpty()) {
+            throw validation("metricCode", "UNKNOWN", "不支持的指标");
+        }
+        List<TrendObservation> rows = trendMapper.findFormalUnmapped(profileId, range.to()).stream()
+                .filter(o -> key.equals(normalizeName(o.getOriginalName())))
+                .toList();
+        if (rows.isEmpty()) {
+            // 截至区间末日没有该原名的结果：返回空分组，不区分“从未有过”与“区间之后才有”
+            return new TrendView(new MetricInfo(code, key, "", null), range, List.of(), false);
+        }
+        TrendObservation last = rows.get(rows.size() - 1);
+        List<TrendGroup> groups = buildGroups(rows, null, range);
+        MetricInfo metric = new MetricInfo(code, displayName(last.getOriginalName()),
+                blankToEmpty(last.getUnitText()), "该项目暂未纳入标准指标字典，按报告原名汇总，仅供查看，不与其他名称合并。");
         return new TrendView(metric, range, groups, groups.size() > 1);
     }
 

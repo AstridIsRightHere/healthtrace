@@ -89,7 +89,7 @@ function err(errors: Record<string, string>, index: number, field: string): stri
         </div>
         <button
           type="button"
-          class="btn-link obs-remove"
+          class="text-link obs-remove"
           :disabled="disabled"
           :aria-label="`删除第 ${index + 1} 项 ${row.originalName}`"
           @click="emit('remove', index)"

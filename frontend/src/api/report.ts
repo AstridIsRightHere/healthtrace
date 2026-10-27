@@ -96,6 +96,12 @@ export const reportApi = {
       .get<ReportListItem[]>(`/patient-profiles/${profileId}/reports`, { params: { status: 'DRAFT' } })
       .then((res) => res.data),
 
+  /** GET /api/v1/patient-profiles/{profileId}/reports?status=CONFIRMED：已确认报告，按检查日期倒序 */
+  listConfirmed: (profileId: number) =>
+    api
+      .get<ReportListItem[]>(`/patient-profiles/${profileId}/reports`, { params: { status: 'CONFIRMED' } })
+      .then((res) => res.data),
+
   /** DELETE /api/v1/reports/{reportId}：彻底删除本人名下尚未确认的报告 */
   remove: (reportId: number) => api.delete<void>(`/reports/${reportId}`).then(() => undefined),
 

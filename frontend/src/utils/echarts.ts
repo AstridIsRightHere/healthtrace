@@ -4,11 +4,13 @@ import { LineChart, type LineSeriesOption } from 'echarts/charts'
 import {
   AriaComponent,
   GridComponent,
+  LegendComponent,
   MarkAreaComponent,
   MarkLineComponent,
   TooltipComponent,
   type AriaComponentOption,
   type GridComponentOption,
+  type LegendComponentOption,
   type MarkAreaComponentOption,
   type MarkLineComponentOption,
   type TooltipComponentOption,
@@ -20,6 +22,7 @@ echarts.use([
   LineChart,
   GridComponent,
   TooltipComponent,
+  LegendComponent,
   MarkAreaComponent,
   MarkLineComponent,
   AriaComponent,
@@ -31,6 +34,7 @@ export type ChartOption = ComposeOption<
   | LineSeriesOption
   | GridComponentOption
   | TooltipComponentOption
+  | LegendComponentOption
   | MarkAreaComponentOption
   | MarkLineComponentOption
   | AriaComponentOption

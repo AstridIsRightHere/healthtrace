@@ -52,6 +52,15 @@ export interface ReportListItem {
   lastOcrErrorCode: string | null
 }
 
+/** 已确认报告按种类聚合的一组；reports 按检查日期、id 倒序 */
+export interface ReportGroup {
+  key: string
+  label: string
+  count: number
+  latestDate: string | null
+  reports: ReportListItem[]
+}
+
 export interface CreateReportPayload {
   title?: string
   /** yyyy-MM-dd，可空 */
@@ -101,6 +110,10 @@ export const reportApi = {
     api
       .get<ReportListItem[]>(`/patient-profiles/${profileId}/reports`, { params: { status: 'CONFIRMED' } })
       .then((res) => res.data),
+
+  /** GET /api/v1/patient-profiles/{profileId}/report-groups：已确认报告按种类聚合（报告对比入口） */
+  listConfirmedGroups: (profileId: number) =>
+    api.get<ReportGroup[]>(`/patient-profiles/${profileId}/report-groups`).then((res) => res.data),
 
   /** DELETE /api/v1/reports/{reportId}：彻底删除本人名下尚未确认的报告 */
   remove: (reportId: number) => api.delete<void>(`/reports/${reportId}`).then(() => undefined),

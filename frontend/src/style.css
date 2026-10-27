@@ -1152,6 +1152,16 @@ legend {
 }
 
 /* 报告对比 */
+.compare-types {
+  display: grid;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.compare-empty {
+  margin-top: 8px;
+}
+
 .compare-controls {
   display: grid;
   grid-template-columns: 1fr auto 1fr;

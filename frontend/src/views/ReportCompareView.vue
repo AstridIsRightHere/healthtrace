@@ -2,20 +2,35 @@
 // 报告对比（FR-010/011）：选择两份已确认报告，按“上次 / 此次”对照共有指标。
 // 只做客观描述，不出现“好转/恶化”等判断（TC-010）；单位、标本或方法不同的结果不计算变化（DEC-015）。
 import { computed, onMounted, ref, watch } from 'vue'
-import { RouterLink } from 'vue-router'
+import { RouterLink, useRoute, useRouter } from 'vue-router'
 import { errorMessage } from '../api'
 import { compareApi, type ComparisonView } from '../api/compare'
-import { reportApi, type ReportListItem } from '../api/report'
+import { reportApi, type ReportGroup, type ReportListItem } from '../api/report'
 import ReportSelect from '../components/report/ReportSelect.vue'
 import { useProfileStore } from '../stores/profile'
-import { cellText, defaultPair, filterRows, rowReference, rowStatusText } from '../utils/reportCompare'
+import {
+  cellText,
+  defaultPair,
+  filterRows,
+  groupChipLabel,
+  initialGroupKey,
+  rowReference,
+  rowStatusText,
+} from '../utils/reportCompare'
 import { changeText } from '../utils/trendOption'
 
 const profile = useProfileStore()
+const route = useRoute()
+const router = useRouter()
 
-const reports = ref<ReportListItem[]>([])
+const groups = ref<ReportGroup[]>([])
+const groupKey = ref<string | null>(null)
 const reportsLoading = ref(true)
 const reportsError = ref('')
+
+const currentGroup = computed(() => groups.value.find((g) => g.key === groupKey.value) ?? null)
+const reports = computed<ReportListItem[]>(() => currentGroup.value?.reports ?? [])
+const totalReports = computed(() => groups.value.reduce((n, g) => n + g.count, 0))
 
 const baseId = ref<number | null>(null)
 const targetId = ref<number | null>(null)
@@ -61,6 +76,15 @@ async function loadComparison() {
 
 watch([baseId, targetId], () => void loadComparison())
 
+/** 切换报告类型：自动选中该类型最新的两份（此次=最新，上次=第二新）；不足两份清空选择 */
+function selectGroup(key: string | null, syncUrl = true) {
+  groupKey.value = key
+  const pair = defaultPair(reports.value)
+  baseId.value = pair?.baseId ?? null
+  targetId.value = pair?.targetId ?? null
+  if (syncUrl && key) void router.replace({ query: { ...route.query, type: key } })
+}
+
 onMounted(async () => {
   const pid = profile.profile?.id
   if (!pid) {
@@ -68,12 +92,9 @@ onMounted(async () => {
     return
   }
   try {
-    reports.value = await reportApi.listConfirmed(pid)
-    const pair = defaultPair(reports.value)
-    if (pair) {
-      baseId.value = pair.baseId
-      targetId.value = pair.targetId
-    }
+    groups.value = await reportApi.listConfirmedGroups(pid)
+    const preferred = typeof route.query.type === 'string' ? route.query.type : null
+    selectGroup(initialGroupKey(groups.value, preferred), false)
   } catch (error) {
     reportsError.value = errorMessage(error, '报告列表加载失败，请稍后刷新')
   } finally {
@@ -93,11 +114,37 @@ onMounted(async () => {
     <section class="home-card">
       <p v-if="reportsLoading" class="field-hint" role="status">加载中…</p>
       <p v-else-if="reportsError" class="notice notice-error" role="alert">{{ reportsError }}</p>
-      <p v-else-if="reports.length < 2" class="field-hint">
-        至少需要两份已确认的报告才能对比。上传报告并核对确认后再来看看。
+      <p v-else-if="totalReports === 0" class="field-hint">
+        还没有已确认的报告。上传报告并核对确认后再来看看。
       </p>
 
       <template v-else>
+        <div class="compare-types">
+          <span class="metric-picker-title" id="compare-type-title">报告类型</span>
+          <div class="chip-group" role="radiogroup" aria-labelledby="compare-type-title">
+            <button
+              v-for="g in groups"
+              :key="g.key"
+              type="button"
+              role="radio"
+              class="chip"
+              :class="{ 'chip-active': g.key === groupKey }"
+              :aria-checked="g.key === groupKey"
+              :title="g.label"
+              @click="selectGroup(g.key)"
+            >
+              <span class="chip-name">{{ groupChipLabel(g) }}</span>
+            </button>
+          </div>
+        </div>
+
+        <p v-if="reports.length < 2" class="field-hint compare-empty" role="status">
+          该类型报告只有一份，无法进行对比。
+        </p>
+      </template>
+
+      <template v-if="!reportsLoading && !reportsError && reports.length >= 2">
+        <p class="field-hint">已自动选中该类型最新的两份报告，可在下方更换。</p>
         <div class="compare-controls">
           <ReportSelect v-model="baseId" label="上次" :reports="reports" :disabled-id="targetId" />
           <button type="button" class="btn-ghost btn-small compare-swap" aria-label="交换上次与此次" @click="swap">

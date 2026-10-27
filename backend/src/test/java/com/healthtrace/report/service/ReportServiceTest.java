@@ -196,6 +196,36 @@ class ReportServiceTest {
         verify(reportMapper, never()).findConfirmedByProfile(anyLong());
     }
 
+    @Test
+    void listConfirmedGroupsAggregatesByCleanedTitle() {
+        com.healthtrace.report.domain.ReportSummary a = new com.healthtrace.report.domain.ReportSummary();
+        a.setId(32L);
+        a.setTitle("血常规 2026-10-01");
+        a.setProcessingStatus(ProcessingStatus.CONFIRMED);
+        a.setExaminationDate(LocalDate.of(2026, 10, 1));
+        com.healthtrace.report.domain.ReportSummary b = new com.healthtrace.report.domain.ReportSummary();
+        b.setId(31L);
+        b.setTitle("血常规报告");
+        b.setProcessingStatus(ProcessingStatus.CONFIRMED);
+        b.setExaminationDate(LocalDate.of(2026, 5, 1));
+        given(reportMapper.findConfirmedByProfile(PROFILE)).willReturn(List.of(a, b));
+
+        var groups = service.listConfirmedGroups(ACCOUNT, PROFILE);
+
+        assertThat(groups).singleElement().satisfies(g -> {
+            assertThat(g.label()).isEqualTo("血常规");
+            assertThat(g.count()).isEqualTo(2);
+            assertThat(g.reports()).extracting(r -> r.id()).containsExactly(32L, 31L);
+        });
+    }
+
+    @Test
+    void listConfirmedGroupsChecksOwnership() {
+        assertThatThrownBy(() -> service.listConfirmedGroups(ACCOUNT, 999L))
+                .satisfies(e -> assertThat(codeOf(e).code()).isEqualTo("HT-3001"));
+        verify(reportMapper, never()).findConfirmedByProfile(anyLong());
+    }
+
     // ------------------------------------------------------------ upload
 
     @Test

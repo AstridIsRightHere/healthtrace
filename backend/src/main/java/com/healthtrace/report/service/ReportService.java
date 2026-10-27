@@ -199,13 +199,15 @@ public class ReportService {
         return PhotoUploadResult.uploaded(toView(photo));
     }
 
-    /** 报告列表。当前只支持 DRAFT（待处理）筛选。 */
+    /** 报告列表。支持 DRAFT（待处理）与 CONFIRMED（已确认）筛选。 */
     public List<ReportListItem> listReports(long accountId, long profileId, ReportListFilter filter) {
         requireProfileAccess(accountId, profileId);
-        if (filter != ReportListFilter.DRAFT) {
-            throw validation("status", "NotSupported", "当前仅支持 status=DRAFT");
-        }
-        return reportMapper.findPendingByProfile(profileId).stream().map(ReportService::toListItem).toList();
+        List<ReportSummary> rows = switch (filter) {
+            case DRAFT -> reportMapper.findPendingByProfile(profileId);
+            case CONFIRMED -> reportMapper.findConfirmedByProfile(profileId);
+            case null -> throw validation("status", "NotSupported", "当前仅支持 status=DRAFT 或 CONFIRMED");
+        };
+        return rows.stream().map(ReportService::toListItem).toList();
     }
 
     /**

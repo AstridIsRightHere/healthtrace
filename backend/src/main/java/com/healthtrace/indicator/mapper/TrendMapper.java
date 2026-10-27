@@ -24,6 +24,9 @@ public interface TrendMapper {
      */
     List<TrendObservation> findFormalByProfile(@Param("profileId") long profileId);
 
+    /** 单份报告的全部 FORMAL 结果（按观测 id 升序），已映射的行带 metricCode；调用方须先校验报告授权与确认状态。 */
+    List<TrendObservation> findFormalByReport(@Param("reportId") long reportId);
+
     /** 未映射标准字典的正式结果（截至 to，含）；按原名筛选在服务层完成，与列表归组规则一致。 */
     List<TrendObservation> findFormalUnmapped(@Param("profileId") long profileId,
                                               @Param("to") LocalDate to);

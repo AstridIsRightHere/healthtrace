@@ -46,10 +46,10 @@ public class TrendService {
 
     /** 区间截止日按中国时间的“今天”计算。 */
     static final ZoneId BUSINESS_ZONE = ZoneId.of("Asia/Shanghai");
-    static final String NOTE_PREVIOUS_ZERO = "PREVIOUS_ZERO";
+    public static final String NOTE_PREVIOUS_ZERO = "PREVIOUS_ZERO";
     static final String NOTE_SAME_DAY = "SAME_DAY_AMBIGUOUS";
     /** 未纳入标准字典的项目 code 前缀（RAW: + 归一后的报告原名）。 */
-    static final String RAW_PREFIX = "RAW:";
+    public static final String RAW_PREFIX = "RAW:";
 
     private final TrendMapper trendMapper;
     private final ProfileMapper profileMapper;
@@ -96,7 +96,7 @@ public class TrendService {
     }
 
     /** 列表/趋势共用的归组 code：已映射用标准 code，未映射用 RAW: + 归一后的原名。 */
-    static String metricKey(TrendObservation o) {
+    public static String metricKey(TrendObservation o) {
         if (o.getMetricCode() != null && !o.getMetricCode().isBlank()) {
             return o.getMetricCode();
         }
@@ -104,7 +104,7 @@ public class TrendService {
     }
 
     /** 原名归一：去空白、去报告中常见的 ★☆*※ 标记、全角转半角括号、转大写；不做同义合并（DEC-015）。 */
-    static String normalizeName(String name) {
+    public static String normalizeName(String name) {
         if (name == null) {
             return "";
         }
@@ -113,7 +113,7 @@ public class TrendService {
                 .toUpperCase(java.util.Locale.ROOT);
     }
 
-    static String displayName(String name) {
+    public static String displayName(String name) {
         if (name == null) {
             return "";
         }
@@ -199,7 +199,7 @@ public class TrendService {
 
     // ---------------------------------------------------------------- grouping
 
-    static String groupKey(TrendObservation o) {
+    public static String groupKey(TrendObservation o) {
         String unit = UnitNormalizer.normalize(o.getUnitText());
         String specimen = UnitNormalizer.normalizeText(o.getSpecimenText());
         String method = UnitNormalizer.normalizeText(o.getMethodText());
@@ -275,7 +275,7 @@ public class TrendService {
         return groups;
     }
 
-    static Change change(BigDecimal previous, BigDecimal current) {
+    public static Change change(BigDecimal previous, BigDecimal current) {
         BigDecimal absolute = clean(current.subtract(previous));
         if (previous.signum() == 0) {
             return new Change(absolute, null, NOTE_PREVIOUS_ZERO);
@@ -286,7 +286,7 @@ public class TrendService {
     }
 
     /** 去掉 DECIMAL(20,8) 的尾随 0，并避免科学计数法输出。 */
-    static BigDecimal clean(BigDecimal value) {
+    public static BigDecimal clean(BigDecimal value) {
         if (value == null) {
             return null;
         }

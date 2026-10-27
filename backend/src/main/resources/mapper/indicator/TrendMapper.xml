@@ -54,6 +54,16 @@
         ORDER BY o.examination_date, o.id
     </select>
 
+    <!-- 单份报告的正式结果（报告对比用）；报告的授权、确认状态由调用方先校验 -->
+    <select id="findFormalByReport" resultType="com.healthtrace.indicator.domain.TrendObservation">
+        SELECT <include refid="observationColumns"/>, d.code AS metric_code
+        FROM observation o
+                 LEFT JOIN metric_definition d ON d.id = o.metric_definition_id
+        WHERE o.report_id = #{reportId}
+          AND o.status = 'FORMAL'
+        ORDER BY o.id
+    </select>
+
     <!-- 未映射标准字典的正式结果（截至 to）；按原名过滤在服务层完成，规则与列表一致 -->
     <select id="findFormalUnmapped" resultType="com.healthtrace.indicator.domain.TrendObservation">
         SELECT <include refid="observationColumns"/>

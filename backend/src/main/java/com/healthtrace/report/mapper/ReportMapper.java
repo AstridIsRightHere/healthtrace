@@ -22,6 +22,9 @@ public interface ReportMapper {
     /** 待处理（DRAFT 别名）：visibility=NORMAL 且 processing_status≠CONFIRMED，按上传时间倒序。 */
     List<ReportSummary> findPendingByProfile(@Param("profileId") long profileId);
 
+    /** 已确认：visibility=NORMAL 且 processing_status=CONFIRMED，按检查日期倒序、id 倒序。 */
+    List<ReportSummary> findConfirmedByProfile(@Param("profileId") long profileId);
+
     /** 带行锁读取，用于确认等需要串行化的写操作。 */
     Report findByIdForUpdate(@Param("id") long id);
 

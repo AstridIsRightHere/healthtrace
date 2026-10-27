@@ -279,6 +279,36 @@ class ReportWebTest {
     }
 
     @Test
+    void listConfirmedDelegatesWithFilter() throws Exception {
+        given(reportService.listReports(7L, 11L, ReportListFilter.CONFIRMED)).willReturn(List.of(
+                new com.healthtrace.report.service.ReportViews.ReportListItem(31L, "甲功", ReportType.UNKNOWN,
+                        LocalDate.of(2026, 10, 1), ProcessingStatus.CONFIRMED,
+                        LocalDateTime.of(2026, 10, 2, 9, 0), 1, 5L, true, null)));
+        mvc.perform(get("/api/v1/patient-profiles/11/reports").param("status", "confirmed").with(account(7L)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].id").value(31))
+                .andExpect(jsonPath("$[0].examinationDate").value("2026-10-01"))
+                .andExpect(jsonPath("$[0].processingStatus").value("CONFIRMED"));
+    }
+
+    @Test
+    void listConfirmedOnOthersProfileIs404() throws Exception {
+        given(reportService.listReports(7L, 99L, ReportListFilter.CONFIRMED))
+                .willThrow(new ApiException(ErrorCode.RESOURCE_NOT_FOUND));
+        mvc.perform(get("/api/v1/patient-profiles/99/reports").param("status", "CONFIRMED").with(account(7L)))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("HT-3001"));
+    }
+
+    @Test
+    void listUnknownStatusIs400() throws Exception {
+        mvc.perform(get("/api/v1/patient-profiles/11/reports").param("status", "ALL").with(account(7L)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("HT-1001"));
+        verify(reportService, never()).listReports(anyLong(), anyLong(), any());
+    }
+
+    @Test
     void accessPhotoRequiresLogin() throws Exception {
         mvc.perform(get("/api/v1/photos/99/access")).andExpect(status().isUnauthorized());
         verify(reportService, never()).openPhoto(anyLong(), anyLong(), any());

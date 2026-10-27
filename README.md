@@ -4,7 +4,15 @@
 
 ## 当前阶段
 
-本项目已进入**编码阶段**（2026-10-24 起），目前仅完成前后端**工程骨架**，尚无业务功能、产品测试或部署，无已实现功能或实验结果可供声明。31 份编号文档（00～29、31）及文档索引覆盖需求、设计、工程规划和论文草稿，第二阶段文档已通过评审。
+本项目处于 **MVP 编码阶段**（2026-10-24 起），尚未部署或开展真实用户试用。已合入 main 的功能：
+
+- 账号：邀请制注册、邮箱验证、登录、密码找回（US-001/US-002）
+- 患者档案：单账号单患者，授权声明校验（US-003）
+- 报告上传：多图/PDF、原件与预览图双存（FR-004/FR-005）
+- OCR 识别与逐项确认：百度医疗检验报告单识别，异步任务，识别原文加密存储（FR-006 等）
+- 指标趋势：按单位分组的折线图与结构化表格（FR-010/FR-011）
+
+尚未实现：就诊时间线、首页概览、临时指标、修改留痕与审计、移除/彻底删除、注销与撤回等，见 [版本路线图](docs/21-版本路线图.md)。31 份编号文档（00～29、31）及文档索引覆盖需求、设计、工程规划和论文草稿。
 
 docs/ 下的部分文档写于 Git 初始化或编码授权之前，其中“尚未初始化 Git”“不创建工程”等描述保留为编写时的历史状态。
 
@@ -16,7 +24,10 @@ healthtrace/
 │   ├── README.md            # 前期文档索引及建议阅读顺序
 │   └── 00～29、31 编号文档  # 31 份 Markdown 文档，文件名以索引为准
 ├── frontend/                # Vue 3.5 + TypeScript 6.0 + Vite 8 + Pinia 4 + Vue Router 5 + ECharts 6.1
-├── backend/                 # Spring Boot 3.5 模块化单体（account/report/indicator/visit/rights）
+├── backend/                 # Spring Boot 4.1 模块化单体（account/profile/report/indicator/visit/rights）
+├── .github/workflows/       # CI：PR 时运行后端测试与前端 lint/测试/构建
+├── start-dev.ps1            # 本地启动后端（读取 .env，dev profile）
+├── start-frontend.ps1       # 本地启动前端 Vite 开发服务器
 ├── docker-compose.yml       # 本地 MySQL 8.4 LTS
 ├── .env.example             # 环境变量名清单（不含真实值）
 ├── .gitignore
@@ -26,33 +37,38 @@ healthtrace/
 
 ## 本地启动
 
-环境要求：JDK 21、Maven 3.9+、Node.js 22.18+（当前部分依赖要求 `^22.18.0 || >=24.11.0`）、Docker Desktop。依赖与缓存放在 D 盘，约定见 [29 环境配置说明](docs/29-环境配置说明.md)。
+环境要求：JDK 25、Maven 3.9+、Node.js 24.11+、Docker Desktop。依赖与缓存放在 D 盘，约定见 [29 环境配置说明](docs/29-环境配置说明.md)。
 
 1. 准备环境变量：复制 `.env.example` 为 `.env`，填写本机自定的值。`.env` 不进入 Git。
 2. 启动 MySQL：
 
-   ```bash
+   ```powershell
    docker compose up -d
    docker compose ps          # 等待 healthy
    ```
 
-3. 启动后端（变量缺失时会直接启动失败，这是预期行为）：
+3. 启动后端：
 
-   ```bash
-   cd backend
-   # 需在当前 shell 中导出 SPRING_PROFILES_ACTIVE=dev、DB_URL、DB_USERNAME、DB_PASSWORD
-   mvn spring-boot:run
+   ```powershell
+   .\start-dev.ps1            # 从 .env 注入变量（不打印值），检查 MySQL 健康后以 dev profile 启动
    ```
 
-4. 启动前端：
+   脚本只在当前进程中注入变量；缺少必需变量时列出变量名并退出。dev profile 下会话 Cookie 关闭 `Secure`，以便在 `http://localhost` 下保持登录；其他环境保持 `Secure`。
 
-   ```bash
-   cd frontend
-   npm install
-   npm run dev
+4. 启动前端（另开一个终端）：
+
+   ```powershell
+   .\start-frontend.ps1       # 首次运行自动 npm ci，之后启动 Vite，/api 代理到 127.0.0.1:8080
    ```
 
-构建验证：`frontend` 下 `npm run build`；`backend` 下 `mvn -DskipTests package`。
+质量检查：
+
+| 位置 | 命令 |
+| --- | --- |
+| `frontend` | `npm run lint`、`npm test`（Vitest）、`npm run build` |
+| `backend` | `mvn test`（Web 层与 Mockito 单元测试，不连接数据库） |
+
+以上检查在 PR 时由 [CI](.github/workflows/ci.yml) 自动运行。
 
 ## 文档导航
 
@@ -71,16 +87,16 @@ healthtrace/
 
 ## 技术栈
 
-以下版本按 DEC-012（2026-10-24 升级确认）锁定，工程骨架已创建，业务功能尚未实现。
+以下版本按 DEC-012 及 2026-10-25 基线对齐（#6）锁定。
 
-| 层次 | 规划与状态 |
+| 层次 | 选型与状态 |
 | --- | --- |
-| 前端 | Vue 3.5.44、TypeScript 6.0.3（strict）、Vite 8.3.5、Pinia 4.1.0、Vue Router 5.4.0；PWA 插件待引入 |
-| 后端 | JDK 21 LTS、Spring Boot 3.5.16 模块化单体 |
-| 数据库 | MySQL 8.4 LTS；Flyway 11.7.2（Boot 管理） |
-| 图表与数据访问 | ECharts 6.1.0；MyBatis 3.5.19（Starter 3.0.5） |
-| OCR 与文件存储 | 计划采用可替换 OCR 适配器及私有对象存储，供应商与处理条款待定；OCR 结果需人工逐项确认 |
-| 交付 | 规划使用 GitHub Actions，初期人工批准发布；部署方式待定 |
+| 前端 | Vue 3.5.44、TypeScript 6.0.3（strict）、Vite 8.3.5、Pinia 4.1.0、Vue Router 5.4.0；ESLint 10 + Vitest 5；PWA 插件待引入 |
+| 后端 | JDK 25 LTS、Spring Boot 4.1.2 模块化单体、Spring Security（会话 + CSRF） |
+| 数据库 | MySQL 8.4.13；Flyway 12（当前迁移至 V5） |
+| 图表与数据访问 | ECharts 6.1.0（按需引入）；MyBatis 3.5 |
+| OCR 与文件存储 | 百度医疗检验报告单识别（可替换适配器），识别原文 AES-GCM 加密；开发期本地存储；OCR 结果需人工逐项确认 |
+| 交付 | GitHub Actions CI（PR 检查）；发布流程与部署方式待定 |
 
 详细理由、替代方案与待确认事项见 [技术选型建议](docs/13-技术选型建议.md)。
 

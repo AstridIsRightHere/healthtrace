@@ -29,6 +29,12 @@ public interface ObservationMapper {
                       @Param("examinationDate") LocalDate examinationDate,
                       @Param("confirmedAt") LocalDateTime confirmedAt);
 
+    /**
+     * 按 METRIC_ALIAS 把该报告的正式结果映射到标准指标（规则与 V5 回填一致：只匹配命名，不换算数值）。
+     * 未命中的结果保持 metric_definition_id 为空，不进入标准指标趋势。
+     */
+    int assignMetricDefinitions(@Param("reportId") long reportId);
+
     /** 彻底删除未确认报告时清理其全部观测值（此时只可能是草稿）。 */
     int deleteByReport(@Param("reportId") long reportId);
 }

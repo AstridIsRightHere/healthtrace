@@ -798,6 +798,106 @@ legend {
   font-size: 1.05rem;
 }
 
+/* 指标趋势 */
+.trend-entry {
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  margin-top: 16px;
+}
+
+.trend-page {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 24px 16px 48px;
+}
+
+.trend-controls {
+  display: grid;
+  gap: 12px;
+}
+
+.trend-metric select {
+  min-height: 44px;
+}
+
+.trend-ranges,
+.trend-groups {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.range-btn {
+  min-height: 44px;
+  min-width: 44px;
+  padding: 0 16px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--card-bg);
+  color: var(--text);
+  font: inherit;
+  cursor: pointer;
+}
+
+.range-btn:hover {
+  border-color: var(--accent);
+}
+
+.range-btn.active {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+  color: var(--text-h);
+  font-weight: 600;
+}
+
+.range-btn:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.trend-custom {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.trend-custom input {
+  min-height: 44px;
+}
+
+.trend-legend {
+  font-size: 13px;
+}
+
+.trend-table-wrap {
+  overflow-x: auto;
+}
+
+.trend-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+
+.trend-table th,
+.trend-table td {
+  padding: 10px 8px;
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+  white-space: nowrap;
+}
+
+.trend-table th {
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.trend-nonnumeric {
+  display: block;
+  font-size: 12px;
+  color: var(--muted);
+}
+
 @media (prefers-reduced-motion: reduce) {
   * {
     transition: none !important;

@@ -12,6 +12,7 @@ import com.healthtrace.report.service.ReportViews.PhotoUploadResult;
 import com.healthtrace.report.service.ReportViews.PhotoVariant;
 import com.healthtrace.report.service.ReportViews.ReportListItem;
 import com.healthtrace.report.service.ReportViews.ReportView;
+import com.healthtrace.report.service.ReportViews;
 import com.healthtrace.report.service.ReportViews.UploadOutcome;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Size;
@@ -70,6 +71,13 @@ public class ReportController {
                                             @RequestParam(name = "status", defaultValue = "DRAFT") String status) {
         ReportListFilter filter = parseEnum(ReportListFilter.class, status, "status", "当前仅支持 status=DRAFT 或 CONFIRMED");
         return reportService.listReports(principal.accountId(), profileId, filter);
+    }
+
+    /** 已确认报告按种类聚合（FR-010 报告对比入口）。他人档案 404 HT-3001。 */
+    @GetMapping("/api/v1/patient-profiles/{profileId}/report-groups")
+    public List<ReportViews.ReportGroup> listReportGroups(@AuthenticationPrincipal AccountPrincipal principal,
+                                                          @PathVariable long profileId) {
+        return reportService.listConfirmedGroups(principal.accountId(), profileId);
     }
 
     /**

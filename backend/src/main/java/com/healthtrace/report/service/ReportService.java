@@ -210,6 +210,11 @@ public class ReportService {
         return rows.stream().map(ReportService::toListItem).toList();
     }
 
+    /** 已确认报告按种类聚合（标题清洗后归组，无标题按类型），供报告对比先选类型再选报告。 */
+    public List<ReportViews.ReportGroup> listConfirmedGroups(long accountId, long profileId) {
+        return ReportGrouping.group(listReports(accountId, profileId, ReportListFilter.CONFIRMED));
+    }
+
     /**
      * 读取图片。支持签名直链的存储返回跳转地址；本地存储由应用回传内容。
      * 请求预览图但该图片没有预览（HEIC/PDF）时视为不存在，前端显示占位图标。

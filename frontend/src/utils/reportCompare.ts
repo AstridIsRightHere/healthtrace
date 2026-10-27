@@ -1,6 +1,6 @@
 // 报告对比页的纯函数逻辑（FR-010/011）。只做客观描述，不出现“好转/恶化”等判断（TC-010）。
 import type { ComparisonRow, ComparisonRowStatus, ObservationCell } from '../api/compare'
-import type { ReportListItem } from '../api/report'
+import type { ReportGroup, ReportListItem } from '../api/report'
 
 /** 报告选项文字：“2024-05-01 · 血常规” */
 export function reportLabel(r: Pick<ReportListItem, 'title' | 'examinationDate'>): string {
@@ -12,6 +12,20 @@ export function reportLabel(r: Pick<ReportListItem, 'title' | 'examinationDate'>
 export function defaultPair(reports: Array<Pick<ReportListItem, 'id'>>): { baseId: number; targetId: number } | null {
   if (reports.length < 2) return null
   return { baseId: reports[1]!.id, targetId: reports[0]!.id }
+}
+
+/** 类型胶囊文字：“血常规（3 份）” */
+export function groupChipLabel(g: Pick<ReportGroup, 'label' | 'count'>): string {
+  return `${g.label}（${g.count} 份）`
+}
+
+/**
+ * 进入页面时默认选中的类型：URL 指定且存在则用它；否则选第一个可对比（≥2 份）的组
+ * （组已按最近检查日期倒序）；都不足两份时选第一个组；没有组返回 null。
+ */
+export function initialGroupKey(groups: Array<Pick<ReportGroup, 'key' | 'count'>>, preferred?: string | null): string | null {
+  if (preferred && groups.some((g) => g.key === preferred)) return preferred
+  return (groups.find((g) => g.count >= 2) ?? groups[0])?.key ?? null
 }
 
 /** “只看两份都有的指标”：保留两侧均有结果的行（含单位等条件不同而不比较的行） */

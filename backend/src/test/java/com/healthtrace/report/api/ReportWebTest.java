@@ -309,6 +309,36 @@ class ReportWebTest {
     }
 
     @Test
+    void listReportGroupsReturnsGroups() throws Exception {
+        var item = new com.healthtrace.report.service.ReportViews.ReportListItem(31L, "血常规", ReportType.UNKNOWN,
+                LocalDate.of(2026, 10, 1), ProcessingStatus.CONFIRMED,
+                LocalDateTime.of(2026, 10, 2, 9, 0), 1, 5L, true, null);
+        given(reportService.listConfirmedGroups(7L, 11L)).willReturn(List.of(
+                new com.healthtrace.report.service.ReportViews.ReportGroup("血常规", "血常规", 1,
+                        LocalDate.of(2026, 10, 1), List.of(item))));
+        mvc.perform(get("/api/v1/patient-profiles/11/report-groups").with(account(7L)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].label").value("血常规"))
+                .andExpect(jsonPath("$[0].count").value(1))
+                .andExpect(jsonPath("$[0].latestDate").value("2026-10-01"))
+                .andExpect(jsonPath("$[0].reports[0].id").value(31));
+    }
+
+    @Test
+    void listReportGroupsOnOthersProfileIs404() throws Exception {
+        given(reportService.listConfirmedGroups(7L, 99L)).willThrow(new ApiException(ErrorCode.RESOURCE_NOT_FOUND));
+        mvc.perform(get("/api/v1/patient-profiles/99/report-groups").with(account(7L)))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("HT-3001"));
+    }
+
+    @Test
+    void listReportGroupsRequiresLogin() throws Exception {
+        mvc.perform(get("/api/v1/patient-profiles/11/report-groups")).andExpect(status().isUnauthorized());
+        verify(reportService, never()).listConfirmedGroups(anyLong(), anyLong());
+    }
+
+    @Test
     void accessPhotoRequiresLogin() throws Exception {
         mvc.perform(get("/api/v1/photos/99/access")).andExpect(status().isUnauthorized());
         verify(reportService, never()).openPhoto(anyLong(), anyLong(), any());

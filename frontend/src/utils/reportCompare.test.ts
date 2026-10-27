@@ -1,6 +1,35 @@
 import { describe, expect, it } from 'vitest'
 import type { ComparisonRow, ObservationCell } from '../api/compare'
-import { cellText, defaultPair, filterRows, reportLabel, rowReference, rowStatusText } from './reportCompare'
+import {
+  cellText,
+  defaultPair,
+  filterRows,
+  groupChipLabel,
+  initialGroupKey,
+  reportLabel,
+  rowReference,
+  rowStatusText,
+} from './reportCompare'
+
+describe('reportCompare 类型分组', () => {
+  it('groupChipLabel 显示名称与份数', () => {
+    expect(groupChipLabel({ label: '血常规', count: 3 })).toBe('血常规（3 份）')
+  })
+
+  it('initialGroupKey：优先 URL 指定且存在的类型', () => {
+    const groups = [
+      { key: 'A', count: 1 },
+      { key: 'B', count: 2 },
+    ]
+    expect(initialGroupKey(groups, 'A')).toBe('A')
+    expect(initialGroupKey(groups, 'ZZZ')).toBe('B')
+  })
+
+  it('initialGroupKey：无可对比组时选第一个，空列表返回 null', () => {
+    expect(initialGroupKey([{ key: 'A', count: 1 }, { key: 'B', count: 1 }])).toBe('A')
+    expect(initialGroupKey([])).toBeNull()
+  })
+})
 
 function cell(value: string, unit: string | null, ref: string | null = null): ObservationCell {
   return {

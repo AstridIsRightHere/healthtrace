@@ -67,6 +67,15 @@ public final class ReportViews {
             String lastOcrErrorCode) {
     }
 
+    /** 已确认报告按种类聚合的一组（FR-010 报告对比入口）。reports 按检查日期、id 倒序。 */
+    public record ReportGroup(
+            String key,
+            String label,
+            int count,
+            LocalDate latestDate,
+            List<ReportListItem> reports) {
+    }
+
     public enum PhotoVariant {
         PREVIEW,
         ORIGINAL

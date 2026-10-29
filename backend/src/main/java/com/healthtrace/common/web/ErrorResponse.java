@@ -2,8 +2,9 @@ package com.healthtrace.common.web;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 
+import org.slf4j.MDC;
+
 import java.util.List;
-import java.util.UUID;
 
 /**
  * 统一错误响应结构（docs/08）：code、message、traceId、fieldErrors（非字段错误省略）、retryable。
@@ -23,8 +24,9 @@ public record ErrorResponse(
         return of(errorCode, errorCode.defaultMessage(), List.of());
     }
 
-    /** 不透明关联号：随机生成，不含资源标识或个人信息。 */
+    /** 不透明关联号：优先取 TraceIdFilter 写入 MDC 的本次请求 id，缺失时（如非请求线程）随机生成。 */
     private static String newTraceId() {
-        return UUID.randomUUID().toString().replace("-", "");
+        String current = MDC.get(TraceIdFilter.MDC_KEY);
+        return current != null && !current.isBlank() ? current : TraceIdFilter.newTraceId();
     }
 }

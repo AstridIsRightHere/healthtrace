@@ -2,6 +2,8 @@ package com.healthtrace.profile.service;
 
 import com.healthtrace.common.web.ApiException;
 import com.healthtrace.common.web.ErrorCode;
+import com.healthtrace.indicator.domain.FollowPolicy;
+import com.healthtrace.indicator.mapper.FollowedMetricMapper;
 import com.healthtrace.profile.domain.AccessStatus;
 import com.healthtrace.profile.domain.PatientProfile;
 import com.healthtrace.profile.domain.ProfileAccess;
@@ -21,6 +23,7 @@ import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
+import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -41,12 +44,15 @@ class ProfileServiceTest {
     private static final long ACCOUNT_ID = 7L;
 
     private ProfileMapper mapper;
+    private FollowedMetricMapper followedMetricMapper;
     private ProfileService service;
 
     @BeforeEach
     void setUp() {
         mapper = mock(ProfileMapper.class);
-        service = new ProfileService(mapper, mock(com.healthtrace.rights.consent.ConsentService.class),
+        followedMetricMapper = mock(FollowedMetricMapper.class);
+        service = new ProfileService(mapper, followedMetricMapper,
+                mock(com.healthtrace.rights.consent.ConsentService.class),
                 mock(com.healthtrace.rights.audit.AuditService.class), Clock.fixed(NOW, ZoneOffset.UTC));
         willAnswer(inv -> {
             inv.<PatientProfile>getArgument(0).setId(100L);
@@ -67,6 +73,15 @@ class ProfileServiceTest {
                 });
         verify(mapper, never()).insertProfile(any());
         verify(mapper, never()).insertAccess(any());
+        verify(followedMetricMapper, never()).insertAll(anyLong(), any(), any());
+    }
+
+    @Test
+    void newProfileFollowsDefaultSixMetrics() {
+        service.createProfile(ACCOUNT_ID, Relationship.SELF, null, true);
+
+        verify(followedMetricMapper).insertAll(100L, List.of("WBC", "HGB", "PLT", "ALT", "AST", "CREA"), NOW_UTC);
+        assertThat(FollowPolicy.DEFAULT_CODES).containsExactly("WBC", "HGB", "PLT", "ALT", "AST", "CREA");
     }
 
     @Test

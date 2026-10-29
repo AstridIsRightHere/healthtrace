@@ -1,5 +1,6 @@
 # CI（docs/28 CI/CD 工作流设计）：PR 与 main 推送时自动验证。
-# - 后端：mvn verify。现有测试均为 @WebMvcTest / Mockito 单元测试，不连接数据库，CI 中无需 MySQL。
+# - 后端：mvn verify。除 @WebMvcTest / Mockito 单元测试外，MysqlIntegrationTest 通过 Testcontainers 启动 mysql:8.4
+#   容器执行 Flyway 迁移与 MyBatis SQL；ubuntu-latest 自带 Docker，无需额外 MySQL 服务（首次需拉取镜像）。
 # - 前端：lint → vitest（jsdom）→ 类型检查 + 构建。
 # 安全：本文件不包含任何密钥；将来需要密钥的步骤只能通过 ${{ secrets.XXX }} 注入。
 name: CI

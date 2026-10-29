@@ -74,6 +74,25 @@
             <artifactId>spring-boot-starter-security-test</artifactId>
             <scope>test</scope>
         </dependency>
+        <!--
+          真实 MySQL 集成测试（Flyway 迁移 + MyBatis XML 语句）。Boot 4.1 BOM 管理 Testcontainers 2.0.x，
+          2.x 起模块改名为 testcontainers-*；@ServiceConnection 由 spring-boot-testcontainers 提供。需要本机/CI 有 Docker。
+        -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-testcontainers</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.testcontainers</groupId>
+            <artifactId>testcontainers-mysql</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.testcontainers</groupId>
+            <artifactId>testcontainers-junit-jupiter</artifactId>
+            <scope>test</scope>
+        </dependency>
     </dependencies>
 
     <build>

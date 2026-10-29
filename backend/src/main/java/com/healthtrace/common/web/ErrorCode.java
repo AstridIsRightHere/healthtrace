@@ -13,6 +13,15 @@ public enum ErrorCode {
     FILE_TOO_LARGE(HttpStatus.CONTENT_TOO_LARGE, "HT-1003", "单个文件不能超过 25 MiB", false),
     /** 服务端按文件头检测的类型不在 JPEG/PNG/HEIC/PDF 之内。 */
     UNSUPPORTED_MEDIA_TYPE(HttpStatus.UNSUPPORTED_MEDIA_TYPE, "HT-1004", "仅支持 JPEG、PNG、HEIC、PDF 文件", false),
+    /**
+     * 请求路径不对应任何接口（客户端调用错误）。与 HT-3001 区分：HT-3001 表示接口存在但资源不存在或无权访问，
+     * 已登录用户才会走到这里（未登录先被 Security 拦为 401），不涉及资源存在性。
+     */
+    ENDPOINT_NOT_FOUND(HttpStatus.NOT_FOUND, "HT-1005", "接口不存在", false),
+    /** 接口存在但不支持该 HTTP 方法；响应带 Allow 头。 */
+    METHOD_NOT_ALLOWED(HttpStatus.METHOD_NOT_ALLOWED, "HT-1006", "接口不支持该请求方法", false),
+    /** 请求体 Content-Type 不被接口接受（区别于 HT-1004 的上传文件类型检测）。 */
+    UNSUPPORTED_CONTENT_TYPE(HttpStatus.UNSUPPORTED_MEDIA_TYPE, "HT-1007", "请求内容类型不受支持", false),
 
     UNAUTHENTICATED(HttpStatus.UNAUTHORIZED, "HT-2001", "未登录或会话已失效", false),
     BAD_CREDENTIALS(HttpStatus.UNAUTHORIZED, "HT-2002", "账号或密码不匹配", false),

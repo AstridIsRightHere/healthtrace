@@ -3,6 +3,8 @@ package com.healthtrace.profile.service;
 import com.healthtrace.common.web.ApiException;
 import com.healthtrace.common.web.ErrorCode;
 import com.healthtrace.common.web.FieldErrorItem;
+import com.healthtrace.indicator.domain.FollowPolicy;
+import com.healthtrace.indicator.mapper.FollowedMetricMapper;
 import com.healthtrace.profile.domain.AccessStatus;
 import com.healthtrace.profile.domain.PatientProfile;
 import com.healthtrace.profile.domain.ProfileAccess;
@@ -33,13 +35,15 @@ import java.util.List;
 public class ProfileService {
 
     private final ProfileMapper profileMapper;
+    private final FollowedMetricMapper followedMetricMapper;
     private final ConsentService consentService;
     private final AuditService auditService;
     private final Clock clock;
 
-    public ProfileService(ProfileMapper profileMapper, ConsentService consentService, AuditService auditService,
-                          Clock clock) {
+    public ProfileService(ProfileMapper profileMapper, FollowedMetricMapper followedMetricMapper,
+                          ConsentService consentService, AuditService auditService, Clock clock) {
         this.profileMapper = profileMapper;
+        this.followedMetricMapper = followedMetricMapper;
         this.consentService = consentService;
         this.auditService = auditService;
         this.clock = clock;
@@ -90,6 +94,8 @@ public class ProfileService {
         }
         // 建档授权声明同时落一条 CONSENT_RECORD（健康资料保存），与档案同事务
         consentService.grantStorage(accountId, profile.getId(), relationship, ProfilePolicy.DECLARATION_VERSION, now);
+        // 新档案写入 PRD 默认关注 6 项（FR-009），与档案同事务
+        followedMetricMapper.insertAll(profile.getId(), FollowPolicy.DEFAULT_CODES, now);
         auditService.success(accountId, AuditAction.PROFILE_CREATE, AuditService.token("profile", profile.getId()));
 
         return new ProfileView(profile.getId(), normalizedNickname, relationship, ProfileStatus.ACTIVE, 0L,

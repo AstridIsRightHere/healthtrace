@@ -2,7 +2,12 @@ package com.healthtrace.common.web;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.http.HttpMethod;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.HttpMediaTypeNotSupportedException;
+import org.springframework.web.HttpRequestMethodNotSupportedException;
+import org.springframework.web.servlet.NoHandlerFoundException;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.MissingServletRequestParameterException;
@@ -13,6 +18,7 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 
 import java.util.List;
+import java.util.Set;
 
 /**
  * 把异常映射为统一错误结构。日志只记录错误类别，不记录请求体、邮箱或令牌（docs/22）。
@@ -66,6 +72,32 @@ public class GlobalExceptionHandler {
         ErrorCode code = ErrorCode.VALIDATION_FAILED;
         return ResponseEntity.status(code.status()).body(ErrorResponse.of(code, code.defaultMessage(),
                 List.of(new FieldErrorItem(name, "NotNull", "缺少必填项"))));
+    }
+
+    /** 路径无对应接口（含静态资源回退）：404 HT-1005，不落入 500。 */
+    @ExceptionHandler({NoResourceFoundException.class, NoHandlerFoundException.class})
+    public ResponseEntity<ErrorResponse> handleNotFound(Exception ex) {
+        ErrorCode code = ErrorCode.ENDPOINT_NOT_FOUND;
+        return ResponseEntity.status(code.status()).body(ErrorResponse.of(code));
+    }
+
+    /** 接口存在但方法不支持：405 HT-1006，并按 RFC 9110 返回 Allow 头。 */
+    @ExceptionHandler(HttpRequestMethodNotSupportedException.class)
+    public ResponseEntity<ErrorResponse> handleMethodNotAllowed(HttpRequestMethodNotSupportedException ex) {
+        ErrorCode code = ErrorCode.METHOD_NOT_ALLOWED;
+        ResponseEntity.BodyBuilder builder = ResponseEntity.status(code.status());
+        Set<HttpMethod> allowed = ex.getSupportedHttpMethods();
+        if (allowed != null && !allowed.isEmpty()) {
+            builder.allow(allowed.toArray(HttpMethod[]::new));
+        }
+        return builder.body(ErrorResponse.of(code));
+    }
+
+    /** 请求体 Content-Type 不被接受：415 HT-1007。 */
+    @ExceptionHandler(HttpMediaTypeNotSupportedException.class)
+    public ResponseEntity<ErrorResponse> handleUnsupportedContentType(HttpMediaTypeNotSupportedException ex) {
+        ErrorCode code = ErrorCode.UNSUPPORTED_CONTENT_TYPE;
+        return ResponseEntity.status(code.status()).body(ErrorResponse.of(code));
     }
 
     @ExceptionHandler(Exception.class)

@@ -1731,6 +1731,48 @@ legend {
   overflow-wrap: anywhere;
 }
 
+/* 单张卡片加载失败：可点击重试，绝不显示为“暂无记录” */
+.follow-card-error {
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  border-color: var(--error-text);
+}
+
+.follow-error {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--error-text);
+}
+
+/* 管理关注弹窗（FR-009） */
+.follow-manage-order {
+  display: grid;
+  gap: 6px;
+  margin: 8px 0 16px;
+  padding-left: 20px;
+}
+
+.follow-manage-order > li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: grab;
+}
+
+.follow-manage-order > li > span {
+  flex: 1 1 auto;
+}
+
+.follow-manage-options {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 6px 12px;
+  margin: 0 0 16px;
+  padding: 0;
+  border: 0;
+}
+
 /* 正式报告修改留痕（FR-014） */
 .revise-head {
   display: flex;

@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.healthtrace.indicator.mapper.FollowedMetricMapper">
+
+    <select id="findByProfile" resultType="com.healthtrace.indicator.domain.FollowedMetric">
+        SELECT f.metric_code, d.standard_name, f.sort_order
+        FROM followed_metric f
+                 JOIN metric_definition d ON d.code = f.metric_code
+        WHERE f.profile_id = #{profileId}
+        ORDER BY f.sort_order, f.metric_code
+    </select>
+
+    <delete id="deleteByProfile">
+        DELETE FROM followed_metric WHERE profile_id = #{profileId}
+    </delete>
+
+    <!-- 整表替换的插入步：sort_order 取列表下标 -->
+    <insert id="insertAll">
+        INSERT INTO followed_metric (profile_id, metric_code, sort_order, created_at)
+        VALUES
+        <foreach collection="codes" item="code" index="idx" separator=",">
+            (#{profileId}, #{code}, #{idx}, #{createdAt})
+        </foreach>
+    </insert>
+</mapper>

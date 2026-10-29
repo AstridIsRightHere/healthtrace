@@ -22,6 +22,11 @@ spring:
     validate-on-migrate: true
     clean-disabled: true
 
+logging:
+  pattern:
+    # TraceIdFilter 写入 MDC 的请求关联号；Boot 默认控制台/文件格式会插入 correlation 段（非请求线程为空）
+    correlation: "[%X{traceId:-}] "
+
 mybatis:
   mapper-locations: classpath:mapper/**/*.xml
   configuration:

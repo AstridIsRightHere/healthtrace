@@ -30,6 +30,10 @@ public final class AccountRequests {
     public record PasswordResetRequest(@NotBlank @Email @Size(max = 254) String email) {
     }
 
+    /** 账号注销（FR-017）：需再次输入当前密码。 */
+    public record AccountClosureRequest(@NotBlank @Size(max = 1024) String password) {
+    }
+
     public record PasswordResetConfirmRequest(
             @NotBlank @Size(max = 128) String token,
             @NotBlank String newPassword) {

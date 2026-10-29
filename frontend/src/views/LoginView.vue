@@ -41,6 +41,10 @@ async function onSubmit() {
       <h1 id="login-title">欢迎回来</h1>
       <p class="subtitle">登录后继续记录你的健康点滴</p>
 
+      <p v-if="route.query.closed === '1'" class="notice" role="status" data-testid="closed-notice">
+        账号已注销，相关数据已永久删除。
+      </p>
+
       <form novalidate @submit.prevent="onSubmit">
         <div class="field">
           <label for="login-email">邮箱</label>

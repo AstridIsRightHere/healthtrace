@@ -15,4 +15,8 @@
         WHERE report_id = #{reportId}
         ORDER BY to_version DESC, id DESC
     </select>
+
+    <delete id="deleteByReport">
+        DELETE FROM report_revision WHERE report_id = #{reportId}
+    </delete>
 </mapper>

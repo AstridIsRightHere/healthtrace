@@ -1,0 +1,76 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<!-- 账号注销（FR-017）：全部语句在 AccountClosureService 的单事务内执行 -->
+<mapper namespace="com.healthtrace.account.mapper.AccountClosureMapper">
+
+    <select id="lockAccount" resultType="com.healthtrace.account.domain.Account">
+        SELECT id, email_ciphertext, email_index, password_hash, email_verified_at, status, closed_at,
+               failed_login_count, locked_until, created_at, updated_at
+        FROM account WHERE id = #{accountId}
+        FOR UPDATE
+    </select>
+
+    <select id="findAccessibleProfileIds" resultType="long">
+        SELECT DISTINCT profile_id FROM profile_access WHERE account_id = #{accountId} ORDER BY profile_id
+    </select>
+
+    <select id="countOtherAccessHolders" resultType="int">
+        SELECT COUNT(DISTINCT account_id) FROM profile_access
+        WHERE profile_id = #{profileId} AND account_id &lt;&gt; #{accountId}
+    </select>
+
+    <select id="findReportIdsByProfile" resultType="long">
+        SELECT id FROM report WHERE profile_id = #{profileId} ORDER BY id
+    </select>
+
+    <delete id="deleteVisitsByProfile">
+        DELETE FROM visit WHERE profile_id = #{profileId}
+    </delete>
+
+    <delete id="deleteFollowedMetricsByProfile">
+        DELETE FROM followed_metric WHERE profile_id = #{profileId}
+    </delete>
+
+    <delete id="deleteConsentsByProfile">
+        DELETE FROM consent_record WHERE profile_id = #{profileId}
+    </delete>
+
+    <delete id="deleteAccessByProfile">
+        DELETE FROM profile_access WHERE profile_id = #{profileId}
+    </delete>
+
+    <delete id="deleteProfile">
+        DELETE FROM patient_profile WHERE id = #{profileId}
+    </delete>
+
+    <delete id="deleteAccessByAccount">
+        DELETE FROM profile_access WHERE account_id = #{accountId}
+    </delete>
+
+    <delete id="deleteConsentsByAccount">
+        DELETE FROM consent_record WHERE account_id = #{accountId}
+    </delete>
+
+    <select id="countRemainingReferences" resultType="int">
+        SELECT (SELECT COUNT(*) FROM report WHERE created_by = #{accountId} OR confirmed_by = #{accountId})
+             + (SELECT COUNT(*) FROM ocr_job WHERE created_by = #{accountId})
+             + (SELECT COUNT(*) FROM visit WHERE created_by = #{accountId})
+             + (SELECT COUNT(*) FROM report_revision WHERE actor_account_id = #{accountId})
+    </select>
+
+    <delete id="deleteAuthTokens">
+        DELETE FROM auth_token WHERE account_id = #{accountId}
+    </delete>
+
+    <delete id="deleteIssuedInvitations">
+        DELETE FROM invitation WHERE issuer_account_id = #{accountId}
+    </delete>
+
+    <update id="clearInvitationUsage">
+        UPDATE invitation SET used_by = NULL WHERE used_by = #{accountId}
+    </update>
+
+    <delete id="deleteAccount">
+        DELETE FROM account WHERE id = #{accountId}
+    </delete>
+</mapper>

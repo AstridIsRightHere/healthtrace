@@ -59,6 +59,9 @@ public interface ReportMapper {
     /** 物理删除未确认（UPLOADING / PENDING_CONFIRMATION / FAILED）的报告；返回 0 表示状态已变化。 */
     int deleteUnconfirmed(@Param("id") long id);
 
+    /** 物理删除任意状态的报告（FR-016 彻底删除）；调用方须已删除全部子表行。 */
+    int deleteById(@Param("id") long id);
+
     /** 修改已确认报告（乐观锁）：version 不符或状态不是 CONFIRMED 时返回 0。 */
     int revise(@Param("id") long id,
                @Param("expectedVersion") long expectedVersion,

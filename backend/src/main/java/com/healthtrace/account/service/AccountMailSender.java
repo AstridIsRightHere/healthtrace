@@ -2,7 +2,8 @@ package com.healthtrace.account.service;
 
 /**
  * 账号相关邮件出口。实现只负责投递，不得把令牌写入日志以外的持久位置；
- * 生产实现接入真实邮件服务前，非 dev 环境没有该 Bean，应用会拒绝启动。
+ * 实现选择：dev 为 {@link DevLoggingAccountMailSender}；其余环境配置 spring.mail.host 时为
+ * {@link SmtpAccountMailSender}，否则为 {@link UnconfiguredAccountMailSender}（发信时抛 HT-5003）。
  */
 public interface AccountMailSender {
 

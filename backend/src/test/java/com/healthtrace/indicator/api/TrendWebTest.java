@@ -8,9 +8,15 @@ import com.healthtrace.common.web.ApiException;
 import com.healthtrace.common.web.ErrorCode;
 import com.healthtrace.common.web.ErrorResponseWriter;
 import com.healthtrace.indicator.service.TrendService;
+import com.healthtrace.common.web.FieldErrorItem;
+import com.healthtrace.indicator.service.TrendViews.Change;
 import com.healthtrace.indicator.service.TrendViews.DateRange;
+import com.healthtrace.indicator.service.TrendViews.LatestObservation;
 import com.healthtrace.indicator.service.TrendViews.MetricInfo;
+import com.healthtrace.indicator.service.TrendViews.MetricLatestSummaries;
+import com.healthtrace.indicator.service.TrendViews.MetricLatestSummary;
 import com.healthtrace.indicator.service.TrendViews.TrendView;
+import com.healthtrace.report.domain.AbnormalFlag;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
@@ -21,9 +27,11 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.RequestPostProcessor;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
 
+import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.BDDMockito.given;
@@ -107,5 +115,59 @@ class TrendWebTest {
                         .param("metricCode", "WBC").param("range", "custom").param("from", "2025/01/01"))
                 .andExpect(status().isBadRequest());
         verify(trendService, never()).getTrend(anyLong(), anyLong(), any(), any(), any(), any());
+    }
+
+    @Test
+    void summariesRequireLogin() throws Exception {
+        mvc.perform(get("/api/v1/patient-profiles/5/metric-summaries").param("codes", "WBC"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("HT-2001"));
+        verify(trendService, never()).getLatestSummaries(anyLong(), anyLong(), any());
+    }
+
+    @Test
+    void otherProfileSummariesIsNotFound() throws Exception {
+        given(trendService.getLatestSummaries(7L, 99L, "WBC"))
+                .willThrow(new ApiException(ErrorCode.PROFILE_NOT_FOUND));
+        mvc.perform(get("/api/v1/patient-profiles/99/metric-summaries").with(account(7)).param("codes", "WBC"))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("HT-3001"));
+    }
+
+    @Test
+    void summariesShape() throws Exception {
+        given(trendService.getLatestSummaries(7L, 5L, "WBC,HGB")).willReturn(new MetricLatestSummaries(List.of(
+                new MetricLatestSummary("WBC", "白细胞计数", "10^9/L",
+                        new LatestObservation(11L, 3L, LocalDate.of(2026, 10, 10), "6.5",
+                                new BigDecimal("6.5"), "10^9/L", AbnormalFlag.NORMAL),
+                        new Change(new BigDecimal("0.5"), new BigDecimal("8.33"), null)),
+                new MetricLatestSummary("HGB", "血红蛋白", "g/L", null, null))));
+        mvc.perform(get("/api/v1/patient-profiles/5/metric-summaries").with(account(7)).param("codes", "WBC,HGB"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items[0].metricCode").value("WBC"))
+                .andExpect(jsonPath("$.items[0].standardName").value("白细胞计数"))
+                .andExpect(jsonPath("$.items[0].standardUnit").value("10^9/L"))
+                .andExpect(jsonPath("$.items[0].latest.observationId").value(11))
+                .andExpect(jsonPath("$.items[0].latest.reportId").value(3))
+                .andExpect(jsonPath("$.items[0].latest.examinationDate").value("2026-10-10"))
+                .andExpect(jsonPath("$.items[0].latest.originalValue").value("6.5"))
+                .andExpect(jsonPath("$.items[0].latest.numericValue").value(6.5))
+                .andExpect(jsonPath("$.items[0].latest.unitText").value("10^9/L"))
+                .andExpect(jsonPath("$.items[0].latest.abnormalFlag").value("NORMAL"))
+                .andExpect(jsonPath("$.items[0].change.absolute").value(0.5))
+                .andExpect(jsonPath("$.items[0].change.percent").value(8.33))
+                .andExpect(jsonPath("$.items[1].metricCode").value("HGB"))
+                .andExpect(jsonPath("$.items[1].latest").value(nullValue()))
+                .andExpect(jsonPath("$.items[1].change").value(nullValue()));
+    }
+
+    @Test
+    void summariesValidationIsBadRequest() throws Exception {
+        given(trendService.getLatestSummaries(7L, 5L, null)).willThrow(new ApiException(ErrorCode.VALIDATION_FAILED,
+                "请指定指标", List.of(new FieldErrorItem("codes", "NotBlank", "请指定指标"))));
+        mvc.perform(get("/api/v1/patient-profiles/5/metric-summaries").with(account(7)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("HT-1001"))
+                .andExpect(jsonPath("$.fieldErrors[0].field").value("codes"));
     }
 }

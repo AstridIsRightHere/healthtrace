@@ -10,9 +10,11 @@ import DeleteReportDialog from './DeleteReportDialog.vue'
 const props = defineProps<{ profileId: number }>()
 
 const reports = ref<ReportListItem[]>([])
+/** 全部待处理数（后端 COUNT），用于数量徽标 */
+const total = ref(0)
 const loading = ref(true)
 const message = ref('')
-/** 首页只展示最近 3 条（FR-012），数量徽标显示全部待处理数 */
+/** 首页只展示最近 3 条（FR-012），由后端 SQL LIMIT 限制；数量徽标显示 total */
 const HOME_LIMIT = 3
 const visibleReports = computed(() => reports.value.slice(0, HOME_LIMIT))
 
@@ -67,7 +69,10 @@ async function confirmDelete() {
   try {
     await reportApi.remove(target.id)
     reports.value = reports.value.filter((r) => r.id !== target.id)
+    total.value = Math.max(0, total.value - 1)
     pendingDelete.value = null
+    // 列表只取了前 3 条：删除后若还有更多待处理，重新拉取以补齐
+    if (total.value > reports.value.length) void loadDrafts()
   } catch (error) {
     deleteError.value = errorMessage(error, '删除失败，请稍后重试')
   } finally {
@@ -75,22 +80,27 @@ async function confirmDelete() {
   }
 }
 
-onMounted(async () => {
+async function loadDrafts() {
   try {
-    reports.value = await reportApi.listDrafts(props.profileId)
+    const page = await reportApi.listDrafts(props.profileId, HOME_LIMIT)
+    reports.value = page.items
+    total.value = page.total
+    message.value = ''
   } catch (error) {
     message.value = errorMessage(error, '待处理报告加载失败，请稍后刷新')
   } finally {
     loading.value = false
   }
-})
+}
+
+onMounted(() => loadDrafts())
 </script>
 
 <template>
   <section class="home-card pending-reports" aria-labelledby="pending-title">
     <div class="recent-visits-head">
       <h2 id="pending-title">待处理报告</h2>
-      <span v-if="reports.length" class="pending-badge" data-testid="pending-count">{{ reports.length }} 份待处理</span>
+      <span v-if="total" class="pending-badge" data-testid="pending-count">{{ total }} 份待处理</span>
     </div>
     <p v-if="loading" class="field-hint" role="status">加载中…</p>
     <p v-else-if="message" class="notice notice-error" role="alert">{{ message }}</p>

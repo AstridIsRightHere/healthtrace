@@ -2,10 +2,13 @@ package com.healthtrace.indicator.service;
 
 import com.healthtrace.common.web.ApiException;
 import com.healthtrace.common.web.ErrorCode;
+import com.healthtrace.indicator.domain.MetricAggregate;
 import com.healthtrace.indicator.domain.MetricDefinition;
 import com.healthtrace.indicator.domain.TrendObservation;
 import com.healthtrace.indicator.mapper.TrendMapper;
 import com.healthtrace.indicator.service.TrendViews.DateRange;
+import com.healthtrace.indicator.service.TrendViews.MetricLatestSummaries;
+import com.healthtrace.indicator.service.TrendViews.MetricLatestSummary;
 import com.healthtrace.indicator.service.TrendViews.MetricSummary;
 import com.healthtrace.indicator.service.TrendViews.TrendGroup;
 import com.healthtrace.indicator.service.TrendViews.TrendPoint;
@@ -243,7 +246,8 @@ class TrendServiceTest {
             assertThatThrownBy(() -> service.getTrend(7L, 99L, "WBC", "30d", null, null))
                     .isInstanceOfSatisfying(ApiException.class,
                             e -> assertThat(e.getErrorCode()).isEqualTo(ErrorCode.PROFILE_NOT_FOUND));
-            verify(trendMapper, never()).findFormalByMetric(anyLong(), anyLong(), any());
+            verify(trendMapper, never()).findFormalByMetric(anyLong(), anyLong(), any(), any());
+            verify(trendMapper, never()).findFormalHistoryByMetric(anyLong(), anyLong(), any());
         }
 
         @Test
@@ -252,7 +256,7 @@ class TrendServiceTest {
             assertThatThrownBy(() -> service.listMetrics(7L, 99L))
                     .isInstanceOfSatisfying(ApiException.class,
                             e -> assertThat(e.getErrorCode()).isEqualTo(ErrorCode.PROFILE_NOT_FOUND));
-            verify(trendMapper, never()).findFormalByProfile(anyLong());
+            verify(trendMapper, never()).aggregateFormalByProfile(anyLong());
         }
 
         @Test
@@ -268,7 +272,7 @@ class TrendServiceTest {
         void trendQueriesUpToRangeEndAndFlagsUnitWarning() {
             given(profileMapper.findActiveByAccountAndProfile(7L, 5L)).willReturn(new ProfileRecord());
             given(trendMapper.findDefinitionByCode("WBC")).willReturn(wbc());
-            given(trendMapper.findFormalByMetric(5L, 1L, TODAY_CN)).willReturn(List.of(
+            given(trendMapper.findFormalByMetric(5L, 1L, TODAY_CN.minusDays(29), TODAY_CN)).willReturn(List.of(
                     exact("2026-10-01", "6.0", "10^9/L"),
                     exact("2026-10-10", "6500", "/uL")));
 
@@ -283,15 +287,17 @@ class TrendServiceTest {
         void metricListCountsGroups() {
             given(profileMapper.findActiveByAccountAndProfile(7L, 5L)).willReturn(new ProfileRecord());
             given(trendMapper.findAllDefinitions()).willReturn(List.of(wbc()));
-            given(trendMapper.findFormalByProfile(5L)).willReturn(List.of(
-                    exact("2026-10-01", "6.0", "10^9/L"),
-                    exact("2026-10-10", "6500", "/uL")));
+            given(trendMapper.aggregateFormalByProfile(5L)).willReturn(List.of(
+                    aggregate("WBC", null, "10^9/L", 2, "2026-10-01", 1, 2),
+                    // 原始写法不同（多一个空格）但归一后同组：合并计数，不增加组数
+                    aggregate("WBC", null, "10^9/L ", 1, "2026-10-05", 3, 3),
+                    aggregate("WBC", null, "/uL", 1, "2026-10-10", 4, 4)));
 
             List<MetricSummary> metrics = service.listMetrics(7L, 5L);
 
             assertThat(metrics).singleElement().satisfies(m -> {
                 assertThat(m.code()).isEqualTo("WBC");
-                assertThat(m.count()).isEqualTo(2);
+                assertThat(m.count()).isEqualTo(4);
                 assertThat(m.groupCount()).isEqualTo(2);
                 assertThat(m.latestDate()).isEqualTo(LocalDate.of(2026, 10, 10));
                 assertThat(m.standard()).isTrue();
@@ -305,14 +311,27 @@ class TrendServiceTest {
             return o;
         }
 
+        private MetricAggregate aggregate(String code, String name, String unit, long count, String latest,
+                                          long firstPos, long lastPos) {
+            MetricAggregate a = new MetricAggregate();
+            a.setMetricCode(code);
+            a.setOriginalName(name);
+            a.setUnitText(unit);
+            a.setObservationCount(count);
+            a.setLatestDate(LocalDate.parse(latest));
+            a.setFirstPos(firstPos);
+            a.setLastPos(lastPos);
+            return a;
+        }
+
         @Test
         void unmappedObservationsAreListedByOriginalName() {
             given(profileMapper.findActiveByAccountAndProfile(7L, 5L)).willReturn(new ProfileRecord());
             given(trendMapper.findAllDefinitions()).willReturn(List.of(wbc()));
-            given(trendMapper.findFormalByProfile(5L)).willReturn(List.of(
-                    exact("2026-10-01", "6.0", "10^9/L"),
-                    raw("2026-09-10", "★促甲状腺激素", "2.1", "uIU/mL"),
-                    raw("2026-10-10", "促甲状腺激素 ", "2.4", "uIU/mL")));
+            given(trendMapper.aggregateFormalByProfile(5L)).willReturn(List.of(
+                    aggregate("WBC", null, "10^9/L", 1, "2026-10-01", 1, 1),
+                    aggregate(null, "★促甲状腺激素", "uIU/mL", 1, "2026-09-10", 2, 2),
+                    aggregate(null, "促甲状腺激素 ", "mIU/L", 1, "2026-10-10", 3, 3)));
 
             List<MetricSummary> metrics = service.listMetrics(7L, 5L);
 
@@ -320,9 +339,22 @@ class TrendServiceTest {
             assertThat(metrics.get(1)).satisfies(m -> {
                 assertThat(m.code()).isEqualTo("RAW:促甲状腺激素");
                 assertThat(m.standardName()).isEqualTo("促甲状腺激素");
+                // 展示单位取原排序最后一行的写法
+                assertThat(m.standardUnit()).isEqualTo("mIU/L");
                 assertThat(m.count()).isEqualTo(2);
+                assertThat(m.groupCount()).isEqualTo(2);
                 assertThat(m.standard()).isFalse();
             });
+        }
+
+        @Test
+        void metricWithoutDefinitionIsSkipped() {
+            given(profileMapper.findActiveByAccountAndProfile(7L, 5L)).willReturn(new ProfileRecord());
+            given(trendMapper.findAllDefinitions()).willReturn(List.of(wbc()));
+            given(trendMapper.aggregateFormalByProfile(5L)).willReturn(List.of(
+                    aggregate("HGB", null, "g/L", 1, "2026-10-01", 1, 1)));
+
+            assertThat(service.listMetrics(7L, 5L)).isEmpty();
         }
 
         @Test
@@ -347,6 +379,139 @@ class TrendServiceTest {
                     .isInstanceOfSatisfying(ApiException.class,
                             e -> assertThat(e.getErrorCode()).isEqualTo(ErrorCode.PROFILE_NOT_FOUND));
             verify(trendMapper, never()).findFormalUnmapped(anyLong(), any());
+        }
+
+        @Test
+        void trendChangeOfFirstPointInWindowUsesHistoryQuery() {
+            given(profileMapper.findActiveByAccountAndProfile(7L, 5L)).willReturn(new ProfileRecord());
+            given(trendMapper.findDefinitionByCode("WBC")).willReturn(wbc());
+            LocalDate from = TODAY_CN.minusDays(29);
+            given(trendMapper.findFormalHistoryByMetric(5L, 1L, from)).willReturn(List.of(
+                    exact("2026-08-01", "5.0", "10^9/L")));
+            given(trendMapper.findFormalByMetric(5L, 1L, from, TODAY_CN)).willReturn(List.of(
+                    exact("2026-10-01", "6.0", "10^9/L")));
+
+            TrendView view = service.getTrend(7L, 5L, "WBC", "30d", null, null);
+
+            // 窗口前的历史点不返回，但参与窗口首点的增减计算
+            assertThat(view.groups()).singleElement().satisfies(g -> {
+                assertThat(g.points()).singleElement().satisfies(p -> {
+                    assertThat(p.examinationDate()).isEqualTo(LocalDate.of(2026, 10, 1));
+                    assertThat(p.change().absolute()).isEqualByComparingTo("1.0");
+                    assertThat(p.change().percent()).isEqualByComparingTo("20.00");
+                });
+            });
+        }
+    }
+
+    @Nested
+    class LatestSummaries {
+
+        private MetricDefinition hgb() {
+            MetricDefinition d = new MetricDefinition();
+            d.setId(2L);
+            d.setCode("HGB");
+            d.setStandardName("血红蛋白");
+            d.setStandardUnit("g/L");
+            return d;
+        }
+
+        @BeforeEach
+        void allowAccess() {
+            given(profileMapper.findActiveByAccountAndProfile(7L, 5L)).willReturn(new ProfileRecord());
+            given(trendMapper.findAllDefinitions()).willReturn(List.of(wbc(), hgb()));
+        }
+
+        @Test
+        void newestPointAcrossGroupsWithItsChange() {
+            given(trendMapper.findRecentExactByMetrics(5L, List.of(1L), TODAY_CN)).willReturn(List.of(
+                    exact("2026-10-01", "6.0", "10^9/L"),
+                    exact("2026-10-03", "6500", "/uL"),
+                    exact("2026-10-05", "7.5", "×10⁹/L")));
+
+            MetricLatestSummaries result = service.getLatestSummaries(7L, 5L, "WBC");
+
+            assertThat(result.items()).singleElement().satisfies(item -> {
+                assertThat(item.metricCode()).isEqualTo("WBC");
+                assertThat(item.standardName()).isEqualTo("白细胞计数");
+                assertThat(item.standardUnit()).isEqualTo("10^9/L");
+                assertThat(item.latest().examinationDate()).isEqualTo(LocalDate.of(2026, 10, 5));
+                assertThat(item.latest().observationId()).isEqualTo(3L);
+                assertThat(item.latest().reportId()).isEqualTo(100L);
+                assertThat(item.latest().originalValue()).isEqualTo("7.5");
+                assertThat(item.latest().numericValue()).isEqualByComparingTo("7.5");
+                assertThat(item.latest().unitText()).isEqualTo("×10⁹/L");
+                assertThat(item.latest().abnormalFlag()).isEqualTo(AbnormalFlag.NORMAL);
+                // 与同组（归一后同单位）10-01 的 6.0 比较，不与 /uL 组比较
+                assertThat(item.change().absolute()).isEqualByComparingTo("1.5");
+                assertThat(item.change().percent()).isEqualByComparingTo("25.00");
+            });
+        }
+
+        @Test
+        void itemsFollowRequestOrderAndMissingDataIsNull() {
+            given(trendMapper.findRecentExactByMetrics(5L, List.of(2L, 1L), TODAY_CN)).willReturn(List.of(
+                    exact("2026-10-01", "6.0", "10^9/L")));
+
+            MetricLatestSummaries result = service.getLatestSummaries(7L, 5L, " HGB, WBC,HGB,");
+
+            assertThat(result.items()).extracting(MetricLatestSummary::metricCode).containsExactly("HGB", "WBC");
+            assertThat(result.items().get(0).latest()).isNull();
+            assertThat(result.items().get(0).change()).isNull();
+            assertThat(result.items().get(1).latest().numericValue()).isEqualByComparingTo("6.0");
+            assertThat(result.items().get(1).change()).isNull();
+        }
+
+        @Test
+        void sameDayTieTakesLargerObservationIdAndIsAmbiguous() {
+            given(trendMapper.findRecentExactByMetrics(5L, List.of(1L), TODAY_CN)).willReturn(List.of(
+                    exact("2026-10-01", "6.0", "10^9/L"),
+                    exact("2026-10-05", "7.0", "10^9/L"),
+                    exact("2026-10-05", "7.2", "10^9/L")));
+
+            MetricLatestSummary item = service.getLatestSummaries(7L, 5L, "WBC").items().get(0);
+
+            assertThat(item.latest().observationId()).isEqualTo(3L);
+            assertThat(item.change().note()).isEqualTo("SAME_DAY_AMBIGUOUS");
+            assertThat(item.change().absolute()).isNull();
+        }
+
+        @Test
+        void blankCodesRejected() {
+            assertValidation(" , ", "NotBlank");
+            assertValidation(null, "NotBlank");
+        }
+
+        @Test
+        void moreThanTwentyCodesRejected() {
+            String codes = String.join(",", java.util.stream.IntStream.rangeClosed(1, 21)
+                    .mapToObj(i -> "C" + i).toList());
+            assertValidation(codes, "Size");
+        }
+
+        @Test
+        void unknownCodeRejected() {
+            assertValidation("WBC,BUN", "UnknownMetric");
+            verify(trendMapper, never()).findRecentExactByMetrics(anyLong(), any(), any());
+        }
+
+        @Test
+        void otherProfileIsNotFound() {
+            assertThatThrownBy(() -> service.getLatestSummaries(7L, 99L, "WBC"))
+                    .isInstanceOfSatisfying(ApiException.class,
+                            e -> assertThat(e.getErrorCode()).isEqualTo(ErrorCode.PROFILE_NOT_FOUND));
+            verify(trendMapper, never()).findRecentExactByMetrics(anyLong(), any(), any());
+        }
+
+        private void assertValidation(String codes, String reason) {
+            assertThatThrownBy(() -> service.getLatestSummaries(7L, 5L, codes))
+                    .isInstanceOfSatisfying(ApiException.class, e -> {
+                        assertThat(e.getErrorCode()).isEqualTo(ErrorCode.VALIDATION_FAILED);
+                        assertThat(e.getFieldErrors()).singleElement().satisfies(f -> {
+                            assertThat(f.field()).isEqualTo("codes");
+                            assertThat(f.reasonCode()).isEqualTo(reason);
+                        });
+                    });
         }
     }
 }

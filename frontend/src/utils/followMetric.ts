@@ -1,6 +1,6 @@
 // 首页关注指标卡片的纯逻辑：从趋势接口结果提取最新值和变化方向
 import type { AbnormalFlag } from '../api/ocr'
-import type { TrendChange, TrendView } from '../api/trend'
+import type { MetricLatestSummary, TrendChange, TrendView } from '../api/trend'
 
 export type TrendDirection = 'up' | 'down' | 'flat' | 'none'
 
@@ -29,6 +29,21 @@ export const DIRECTION_TEXT: Record<TrendDirection, string> = {
   down: '较上次降低',
   flat: '与上次持平',
   none: '暂无可比的上次结果',
+}
+
+/** 由批量 metric-summaries 单项生成卡片；后端已按与 /trends 相同语义选出最新点与变化 */
+export function toFollowCardFromSummary(code: string, name: string, s: MetricLatestSummary | undefined): FollowCard {
+  if (!s) return { code, name, value: null, unit: null, date: null, direction: 'none', abnormalFlag: null }
+  const latest = s.latest
+  return {
+    code,
+    name: s.standardName || name,
+    value: latest?.originalValue ?? null,
+    unit: latest?.unitText ?? s.standardUnit ?? null,
+    date: latest?.examinationDate ?? null,
+    direction: latest ? trendDirection(s.change) : 'none',
+    abnormalFlag: latest?.abnormalFlag ?? null,
+  }
 }
 
 /**

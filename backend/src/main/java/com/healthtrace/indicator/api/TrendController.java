@@ -2,6 +2,7 @@ package com.healthtrace.indicator.api;
 
 import com.healthtrace.account.domain.AccountPrincipal;
 import com.healthtrace.indicator.service.TrendService;
+import com.healthtrace.indicator.service.TrendViews.MetricLatestSummaries;
 import com.healthtrace.indicator.service.TrendViews.MetricSummary;
 import com.healthtrace.indicator.service.TrendViews.TrendView;
 import org.springframework.format.annotation.DateTimeFormat;
@@ -30,6 +31,14 @@ public class TrendController {
     public List<MetricSummary> metrics(@AuthenticationPrincipal AccountPrincipal principal,
                                        @PathVariable long profileId) {
         return trendService.listMetrics(principal.accountId(), profileId);
+    }
+
+    /** 关注卡片的最新值摘要：codes 逗号分隔，去重后 1~20 个，items 顺序与请求一致。 */
+    @GetMapping("/metric-summaries")
+    public MetricLatestSummaries metricSummaries(@AuthenticationPrincipal AccountPrincipal principal,
+                                                 @PathVariable long profileId,
+                                                 @RequestParam(required = false) String codes) {
+        return trendService.getLatestSummaries(principal.accountId(), profileId, codes);
     }
 
     @GetMapping("/trends")

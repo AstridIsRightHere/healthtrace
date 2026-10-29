@@ -73,7 +73,7 @@ function replaceVisit(v: Visit) {
 async function reload() {
   const pid = profile.profile?.id
   if (!pid) return
-  visits.value = await visitApi.list(pid)
+  visits.value = (await visitApi.list(pid)).items
 }
 
 onMounted(async () => {
@@ -88,8 +88,8 @@ onMounted(async () => {
       reportApi.listConfirmed(pid),
       reportApi.listDrafts(pid),
     ])
-    visits.value = v
-    reports.value = [...confirmed, ...drafts]
+    visits.value = v.items
+    reports.value = [...confirmed, ...drafts.items]
   } catch (error) {
     loadError.value = errorMessage(error, '就诊记录加载失败，请稍后刷新')
   } finally {

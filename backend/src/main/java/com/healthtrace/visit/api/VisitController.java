@@ -4,6 +4,7 @@ import com.healthtrace.account.domain.AccountPrincipal;
 import com.healthtrace.common.web.ApiException;
 import com.healthtrace.common.web.ErrorCode;
 import com.healthtrace.common.web.FieldErrorItem;
+import com.healthtrace.common.web.ListPage;
 import com.healthtrace.visit.service.VisitService;
 import com.healthtrace.visit.service.VisitViews.VisitInput;
 import com.healthtrace.visit.service.VisitViews.VisitView;
@@ -51,10 +52,10 @@ public class VisitController {
     }
 
     @GetMapping("/api/v1/patient-profiles/{profileId}/visits")
-    public List<VisitView> list(@AuthenticationPrincipal AccountPrincipal principal,
-                                @PathVariable long profileId,
-                                @RequestParam(required = false) Integer limit) {
-        return visitService.list(principal.accountId(), profileId, limit);
+    public ListPage<VisitView> list(@AuthenticationPrincipal AccountPrincipal principal,
+                                    @PathVariable long profileId,
+                                    @RequestParam(required = false) String limit) {
+        return visitService.list(principal.accountId(), profileId, ListPage.parseLimit(limit));
     }
 
     @PostMapping("/api/v1/patient-profiles/{profileId}/visits")

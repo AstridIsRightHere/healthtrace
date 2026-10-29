@@ -1,4 +1,4 @@
-import { api } from './index'
+import { api, type ListPage } from './index'
 import type { ProcessingStatus, ReportType } from './report'
 
 /** 对应后端 VisitViews.LinkedReportView */
@@ -32,10 +32,10 @@ export interface VisitPayload {
 }
 
 export const visitApi = {
-  /** GET /api/v1/patient-profiles/{profileId}/visits：就诊日期倒序（FR-013） */
+  /** GET /api/v1/patient-profiles/{profileId}/visits?limit=n：就诊日期倒序（FR-013），total 为全部就诊数 */
   list: (profileId: number, limit?: number) =>
     api
-      .get<Visit[]>(`/patient-profiles/${profileId}/visits`, { params: limit ? { limit } : {} })
+      .get<ListPage<Visit>>(`/patient-profiles/${profileId}/visits`, { params: limit ? { limit } : {} })
       .then((res) => res.data),
 
   create: (profileId: number, payload: VisitPayload) =>

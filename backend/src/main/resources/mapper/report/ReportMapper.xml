@@ -34,6 +34,14 @@
           AND r.visibility_status = 'NORMAL'
           AND r.processing_status &lt;&gt; 'CONFIRMED'
         ORDER BY r.created_at DESC, r.id DESC
+        <if test="limit != null">LIMIT #{limit}</if>
+    </select>
+
+    <select id="countPendingByProfile" resultType="long">
+        SELECT COUNT(*) FROM report r
+        WHERE r.profile_id = #{profileId}
+          AND r.visibility_status = 'NORMAL'
+          AND r.processing_status &lt;&gt; 'CONFIRMED'
     </select>
 
     <select id="findConfirmedByProfile" resultType="com.healthtrace.report.domain.ReportSummary">
@@ -53,6 +61,14 @@
           AND r.visibility_status = 'NORMAL'
           AND r.processing_status = 'CONFIRMED'
         ORDER BY r.examination_date DESC, r.id DESC
+        <if test="limit != null">LIMIT #{limit}</if>
+    </select>
+
+    <select id="countConfirmedByProfile" resultType="long">
+        SELECT COUNT(*) FROM report r
+        WHERE r.profile_id = #{profileId}
+          AND r.visibility_status = 'NORMAL'
+          AND r.processing_status = 'CONFIRMED'
     </select>
 
     <select id="findByIdForUpdate" resultType="com.healthtrace.report.domain.Report">

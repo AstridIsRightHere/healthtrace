@@ -3,12 +3,16 @@ package com.healthtrace.indicator.service;
 import com.healthtrace.common.web.ApiException;
 import com.healthtrace.common.web.ErrorCode;
 import com.healthtrace.common.web.FieldErrorItem;
+import com.healthtrace.indicator.domain.MetricAggregate;
 import com.healthtrace.indicator.domain.MetricDefinition;
 import com.healthtrace.indicator.domain.TrendObservation;
 import com.healthtrace.indicator.mapper.TrendMapper;
 import com.healthtrace.indicator.service.TrendViews.Change;
 import com.healthtrace.indicator.service.TrendViews.DateRange;
+import com.healthtrace.indicator.service.TrendViews.LatestObservation;
 import com.healthtrace.indicator.service.TrendViews.MetricInfo;
+import com.healthtrace.indicator.service.TrendViews.MetricLatestSummaries;
+import com.healthtrace.indicator.service.TrendViews.MetricLatestSummary;
 import com.healthtrace.indicator.service.TrendViews.MetricSummary;
 import com.healthtrace.indicator.service.TrendViews.NonNumericPoint;
 import com.healthtrace.indicator.service.TrendViews.TrendGroup;
@@ -28,6 +32,7 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -50,6 +55,8 @@ public class TrendService {
     static final String NOTE_SAME_DAY = "SAME_DAY_AMBIGUOUS";
     /** 未纳入标准字典的项目 code 前缀（RAW: + 归一后的报告原名）。 */
     public static final String RAW_PREFIX = "RAW:";
+    /** 最新值摘要一次最多查询的指标数（与关注列表上限一致）。 */
+    static final int MAX_SUMMARY_CODES = 20;
 
     private final TrendMapper trendMapper;
     private final ProfileMapper profileMapper;
@@ -61,38 +68,116 @@ public class TrendService {
         this.clock = clock;
     }
 
+    /**
+     * “有数据的指标”列表。SQL 按原始写法分组计数（aggregateFormalByProfile），服务层再按归一规则合并：
+     * 列表顺序 = 各指标首行在原排序中的位置（MIN first_pos），未映射项目的展示名/单位取最后一行（MAX last_pos），
+     * 与逐行计算的结果一致。
+     */
     public List<MetricSummary> listMetrics(long accountId, long profileId) {
         requireProfileAccess(accountId, profileId);
-        Map<String, List<TrendObservation>> byCode = new LinkedHashMap<>();
-        for (TrendObservation o : trendMapper.findFormalByProfile(profileId)) {
-            byCode.computeIfAbsent(metricKey(o), k -> new ArrayList<>()).add(o);
+        Map<String, List<MetricAggregate>> byCode = new LinkedHashMap<>();
+        // 查询已按 first_pos 升序，LinkedHashMap 的插入顺序即各指标首行的顺序
+        for (MetricAggregate a : trendMapper.aggregateFormalByProfile(profileId)) {
+            String key = a.getMetricCode() != null && !a.getMetricCode().isBlank()
+                    ? a.getMetricCode() : RAW_PREFIX + normalizeName(a.getOriginalName());
+            byCode.computeIfAbsent(key, k -> new ArrayList<>()).add(a);
         }
         Map<String, MetricDefinition> definitions = new HashMap<>();
         for (MetricDefinition d : trendMapper.findAllDefinitions()) {
             definitions.put(d.getCode(), d);
         }
         List<MetricSummary> result = new ArrayList<>();
-        for (Map.Entry<String, List<TrendObservation>> e : byCode.entrySet()) {
-            List<TrendObservation> rows = e.getValue();
-            LocalDate latest = rows.stream().map(TrendObservation::getExaminationDate)
+        for (Map.Entry<String, List<MetricAggregate>> e : byCode.entrySet()) {
+            List<MetricAggregate> parts = e.getValue();
+            int count = Math.toIntExact(parts.stream().mapToLong(MetricAggregate::getObservationCount).sum());
+            LocalDate latest = parts.stream().map(MetricAggregate::getLatestDate)
                     .max(Comparator.naturalOrder()).orElse(null);
             Set<String> keys = new HashSet<>();
-            rows.forEach(o -> keys.add(groupKey(o)));
+            parts.forEach(a -> keys.add(groupKey(a.getUnitText(), a.getSpecimenText(), a.getMethodText())));
             if (e.getKey().startsWith(RAW_PREFIX)) {
-                // 未纳入标准字典的项目：按报告原名汇总，单位取最近一次的写法，仅作展示
-                TrendObservation last = rows.get(rows.size() - 1);
+                // 未纳入标准字典的项目：按报告原名汇总，单位取最近一次（原排序最后一行）的写法，仅作展示
+                MetricAggregate last = parts.stream()
+                        .max(Comparator.comparingLong(MetricAggregate::getLastPos)).orElseThrow();
                 result.add(new MetricSummary(e.getKey(), displayName(last.getOriginalName()),
-                        blankToEmpty(last.getUnitText()), rows.size(), latest, keys.size(), false));
+                        blankToEmpty(last.getUnitText()), count, latest, keys.size(), false));
                 continue;
             }
             MetricDefinition d = definitions.get(e.getKey());
             if (d == null) {
                 continue;
             }
-            result.add(new MetricSummary(d.getCode(), d.getStandardName(), d.getStandardUnit(), rows.size(),
+            result.add(new MetricSummary(d.getCode(), d.getStandardName(), d.getStandardUnit(), count,
                     latest, keys.size(), true));
         }
         return result;
+    }
+
+    /**
+     * 关注卡片的最新值摘要（固定 2 次 SQL：字典 + IN 查询）。codes 逗号分隔，去重后 1~20 个。
+     * latest = 各可比组中最新的精确数值点（同日取 observationId 较大者），change 与趋势接口中该点一致。
+     */
+    public MetricLatestSummaries getLatestSummaries(long accountId, long profileId, String codes) {
+        requireProfileAccess(accountId, profileId);
+        Set<String> requested = new LinkedHashSet<>();
+        if (codes != null) {
+            for (String c : codes.split(",")) {
+                String code = c.trim();
+                if (!code.isEmpty()) {
+                    requested.add(code);
+                }
+            }
+        }
+        if (requested.isEmpty()) {
+            throw validation("codes", "NotBlank", "请指定指标");
+        }
+        if (requested.size() > MAX_SUMMARY_CODES) {
+            throw validation("codes", "Size", "一次最多查询 " + MAX_SUMMARY_CODES + " 个指标");
+        }
+        Map<String, MetricDefinition> definitions = new HashMap<>();
+        for (MetricDefinition d : trendMapper.findAllDefinitions()) {
+            definitions.put(d.getCode(), d);
+        }
+        List<MetricDefinition> targets = new ArrayList<>();
+        for (String code : requested) {
+            MetricDefinition d = definitions.get(code);
+            if (d == null) {
+                throw validation("codes", "UnknownMetric", "不支持的指标：" + code);
+            }
+            targets.add(d);
+        }
+        LocalDate today = LocalDate.now(clock.withZone(BUSINESS_ZONE));
+        Map<String, List<TrendObservation>> byCode = new HashMap<>();
+        for (TrendObservation o : trendMapper.findRecentExactByMetrics(profileId,
+                targets.stream().map(MetricDefinition::getId).toList(), today)) {
+            byCode.computeIfAbsent(o.getMetricCode(), k -> new ArrayList<>()).add(o);
+        }
+        DateRange all = new DateRange(LocalDate.MIN, today);
+        List<MetricLatestSummary> items = new ArrayList<>();
+        for (MetricDefinition d : targets) {
+            List<TrendObservation> rows = byCode.getOrDefault(d.getCode(), List.of());
+            Map<Long, TrendObservation> byId = new HashMap<>();
+            rows.forEach(o -> byId.put(o.getObservationId(), o));
+            TrendPoint best = null;
+            for (TrendGroup g : buildGroups(rows, d.getStandardUnit(), all)) {
+                for (TrendPoint p : g.points()) {
+                    if (best == null || p.examinationDate().isAfter(best.examinationDate())
+                            || (p.examinationDate().equals(best.examinationDate())
+                            && p.observationId() > best.observationId())) {
+                        best = p;
+                    }
+                }
+            }
+            LatestObservation latest = null;
+            Change change = null;
+            if (best != null) {
+                TrendObservation o = byId.get(best.observationId());
+                latest = new LatestObservation(best.observationId(), best.reportId(), best.examinationDate(),
+                        best.originalValue(), best.numericValue(), blankToNull(o.getUnitText()), best.abnormalFlag());
+                change = best.change();
+            }
+            items.add(new MetricLatestSummary(d.getCode(), d.getStandardName(), d.getStandardUnit(), latest, change));
+        }
+        return new MetricLatestSummaries(items);
     }
 
     /** 列表/趋势共用的归组 code：已映射用标准 code，未映射用 RAW: + 归一后的原名。 */
@@ -136,7 +221,11 @@ public class TrendService {
         if (definition == null) {
             throw validation("metricCode", "UNKNOWN", "不支持的指标");
         }
-        List<TrendObservation> rows = trendMapper.findFormalByMetric(profileId, definition.getId(), range.to());
+        // 窗口内结果由 SQL 按 [from, to] 取出；窗口前只补取 findFormalHistoryByMetric 的最少历史行
+        // （各原始写法最早一条 + 最近精确日期的全部行），使可比组顺序/展示写法与窗口首点的增减与全量计算一致
+        List<TrendObservation> rows = new ArrayList<>(
+                trendMapper.findFormalHistoryByMetric(profileId, definition.getId(), range.from()));
+        rows.addAll(trendMapper.findFormalByMetric(profileId, definition.getId(), range.from(), range.to()));
         List<TrendGroup> groups = buildGroups(rows, definition.getStandardUnit(), range);
         MetricInfo metric = new MetricInfo(definition.getCode(), definition.getStandardName(),
                 definition.getStandardUnit(), definition.getComparabilityNote());
@@ -200,9 +289,13 @@ public class TrendService {
     // ---------------------------------------------------------------- grouping
 
     public static String groupKey(TrendObservation o) {
-        String unit = UnitNormalizer.normalize(o.getUnitText());
-        String specimen = UnitNormalizer.normalizeText(o.getSpecimenText());
-        String method = UnitNormalizer.normalizeText(o.getMethodText());
+        return groupKey(o.getUnitText(), o.getSpecimenText(), o.getMethodText());
+    }
+
+    static String groupKey(String unitText, String specimenText, String methodText) {
+        String unit = UnitNormalizer.normalize(unitText);
+        String specimen = UnitNormalizer.normalizeText(specimenText);
+        String method = UnitNormalizer.normalizeText(methodText);
         return (unit.isEmpty() ? "-" : unit) + "|" + (specimen.isEmpty() ? "-" : specimen)
                 + "|" + (method.isEmpty() ? "-" : method);
     }

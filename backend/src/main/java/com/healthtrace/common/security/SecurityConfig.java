@@ -46,6 +46,9 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.POST, "/api/v1/sessions").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/v1/password-reset-requests").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/v1/password-resets").permitAll()
+                        // OpenAPI 文档：仅 dev 启用（application-dev.yml），其余 profile 关闭后这些路径为 404
+                        .requestMatchers(HttpMethod.GET, "/swagger-ui.html", "/swagger-ui/**",
+                                "/v3/api-docs", "/v3/api-docs/**").permitAll()
                         // 其余接口（含 GET /api/v1/accounts/me、POST /api/v1/email-verifications 重发验证邮件）需登录
                         .anyRequest().authenticated())
                 .csrf(csrf -> csrf

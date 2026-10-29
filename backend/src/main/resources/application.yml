@@ -27,6 +27,13 @@ logging:
     # TraceIdFilter 写入 MDC 的请求关联号；Boot 默认控制台/文件格式会插入 correlation 段（非请求线程为空）
     correlation: "[%X{traceId:-}] "
 
+# OpenAPI 文档（springdoc）：默认关闭，避免在 test/prod 暴露接口清单；仅 application-dev.yml 打开
+springdoc:
+  api-docs:
+    enabled: false
+  swagger-ui:
+    enabled: false
+
 mybatis:
   mapper-locations: classpath:mapper/**/*.xml
   configuration:
@@ -60,3 +67,10 @@ healthtrace:
     baidu:
       api-key: ${HT_BAIDU_OCR_API_KEY}
       secret-key: ${HT_BAIDU_OCR_SECRET_KEY}
+  # 账号邮件（非 dev）：设置 SPRING_MAIL_HOST（及 SPRING_MAIL_PORT/USERNAME/PASSWORD 等 spring.mail.*）后启用 SMTP，
+  # 此时下面两项必填，缺失时启动失败。未设置邮件主机时应用照常启动，但发信请求返回 HT-5003 并记录错误。
+  # 这里不写 spring.mail.host 占位：Boot 只要该键存在（即使为空）就会创建 JavaMailSender。
+  mail:
+    from: ${HT_MAIL_FROM:}
+    # 前端地址，邮件链接形如 {link-base-url}/verify-email?token=...
+    link-base-url: ${HT_MAIL_LINK_BASE_URL:}

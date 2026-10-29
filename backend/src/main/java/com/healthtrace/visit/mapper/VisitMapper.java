@@ -17,8 +17,11 @@ public interface VisitMapper {
 
     Visit findById(@Param("id") long id);
 
-    /** 按就诊日倒序、id 倒序。 */
-    List<Visit> findByProfile(@Param("profileId") long profileId);
+    /** 按就诊日倒序、id 倒序。limit 为空表示全部。 */
+    List<Visit> findByProfile(@Param("profileId") long profileId, @Param("limit") Integer limit);
+
+    /** 档案下就诊总数（忽略 limit）。 */
+    long countByProfile(@Param("profileId") long profileId);
 
     /** 乐观锁更新可编辑字段：version 不符时返回 0。 */
     int update(@Param("visit") Visit visit, @Param("expectedVersion") long expectedVersion);

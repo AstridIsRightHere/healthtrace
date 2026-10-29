@@ -1,4 +1,4 @@
-import { api } from './index'
+import { api, type ListPage } from './index'
 
 /** 报告处理状态（docs/19 REPORT.processing_status） */
 export type ProcessingStatus =
@@ -99,17 +99,19 @@ export const reportApi = {
     return res.data
   },
 
-  /** GET /api/v1/patient-profiles/{profileId}/reports?status=DRAFT：首页待处理列表 */
-  listDrafts: (profileId: number) =>
+  /** GET /api/v1/patient-profiles/{profileId}/reports?status=DRAFT&limit=n：待处理列表，total 为全部待处理数 */
+  listDrafts: (profileId: number, limit?: number) =>
     api
-      .get<ReportListItem[]>(`/patient-profiles/${profileId}/reports`, { params: { status: 'DRAFT' } })
+      .get<ListPage<ReportListItem>>(`/patient-profiles/${profileId}/reports`, {
+        params: limit ? { status: 'DRAFT', limit } : { status: 'DRAFT' },
+      })
       .then((res) => res.data),
 
   /** GET /api/v1/patient-profiles/{profileId}/reports?status=CONFIRMED：已确认报告，按检查日期倒序 */
   listConfirmed: (profileId: number) =>
     api
-      .get<ReportListItem[]>(`/patient-profiles/${profileId}/reports`, { params: { status: 'CONFIRMED' } })
-      .then((res) => res.data),
+      .get<ListPage<ReportListItem>>(`/patient-profiles/${profileId}/reports`, { params: { status: 'CONFIRMED' } })
+      .then((res) => res.data.items),
 
   /** GET /api/v1/patient-profiles/{profileId}/report-groups：已确认报告按种类聚合（报告对比入口） */
   listConfirmedGroups: (profileId: number) =>

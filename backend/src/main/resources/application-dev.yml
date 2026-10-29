@@ -12,3 +12,10 @@ server:
 logging:
   level:
     com.healthtrace: debug
+
+# 仅开发环境开放 OpenAPI 文档：/v3/api-docs 与 /swagger-ui.html（SecurityConfig 已对 GET 放行）
+springdoc:
+  api-docs:
+    enabled: true
+  swagger-ui:
+    enabled: true

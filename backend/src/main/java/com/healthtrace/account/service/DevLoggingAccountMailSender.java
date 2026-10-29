@@ -7,7 +7,7 @@ import org.springframework.stereotype.Component;
 
 /**
  * 开发环境邮件实现：不真正发信，只把链接打印到本机日志，便于用合成账号走通流程。
- * 仅在 dev Profile 生效；test/prod 必须提供真实实现，否则缺少 Bean 导致启动失败（不静默降级）。
+ * 仅在 dev Profile 生效；其余环境使用 SMTP 实现，未配置邮件服务时发信直接失败（不静默降级）。
  * 收件人做掩码处理；dev 只使用合成数据（29-环境配置说明）。
  */
 @Component

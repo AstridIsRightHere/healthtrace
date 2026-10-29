@@ -23,6 +23,11 @@
         FROM visit
         WHERE profile_id = #{profileId}
         ORDER BY visit_date DESC, id DESC
+        <if test="limit != null">LIMIT #{limit}</if>
+    </select>
+
+    <select id="countByProfile" resultType="long">
+        SELECT COUNT(*) FROM visit WHERE profile_id = #{profileId}
     </select>
 
     <update id="update">

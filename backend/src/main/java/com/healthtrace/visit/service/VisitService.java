@@ -3,6 +3,7 @@ package com.healthtrace.visit.service;
 import com.healthtrace.common.web.ApiException;
 import com.healthtrace.common.web.ErrorCode;
 import com.healthtrace.common.web.FieldErrorItem;
+import com.healthtrace.common.web.ListPage;
 import com.healthtrace.profile.mapper.ProfileMapper;
 import com.healthtrace.report.domain.Report;
 import com.healthtrace.report.domain.VisibilityStatus;
@@ -56,14 +57,15 @@ public class VisitService {
         this.clock = clock;
     }
 
-    /** 就诊列表：就诊日倒序，附带关联报告。limit 为空表示全部。 */
-    public List<VisitView> list(long accountId, long profileId, Integer limit) {
+    /**
+     * 就诊列表：就诊日倒序，附带关联报告。limit 为空表示全部；
+     * total 为该档案就诊总数（SQL LIMIT + 独立 COUNT）。
+     */
+    public ListPage<VisitView> list(long accountId, long profileId, Integer limit) {
         requireProfileAccess(accountId, profileId);
-        List<Visit> visits = visitMapper.findByProfile(profileId);
-        if (limit != null && limit > 0 && visits.size() > limit) {
-            visits = visits.subList(0, limit);
-        }
-        return toViews(visits);
+        List<Visit> visits = visitMapper.findByProfile(profileId, limit);
+        long total = limit == null || visits.size() < limit ? visits.size() : visitMapper.countByProfile(profileId);
+        return new ListPage<>(toViews(visits), total);
     }
 
     public VisitView get(long accountId, long visitId) {

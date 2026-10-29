@@ -137,7 +137,11 @@ class ReportPurgeIntegrationTest {
 
         // 提交后异步清理：等待 outbox 清空
         long deadline = System.currentTimeMillis() + 10_000;
-        while (count("SELECT COUNT(*) FROM storage_purge_task WHERE ledger_id = ?", ledgerId) > 0
+        // 异步线程先删任务行、再更新账本状态：两步之间存在窗口，必须等待最终状态（账本 COMPLETED），
+        // 只等任务行清空会在较慢的 CI 机器上读到 STORAGE_PENDING。
+        while ((count("SELECT COUNT(*) FROM storage_purge_task WHERE ledger_id = ?", ledgerId) > 0
+                || !"COMPLETED".equals(jdbc.queryForObject(
+                        "SELECT status FROM deletion_ledger WHERE id = ?", String.class, ledgerId)))
                 && System.currentTimeMillis() < deadline) {
             Thread.sleep(50);
         }

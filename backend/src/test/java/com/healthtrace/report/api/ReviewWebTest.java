@@ -10,7 +10,8 @@ import com.healthtrace.common.web.ErrorResponseWriter;
 import com.healthtrace.common.web.FieldErrorItem;
 import com.healthtrace.report.domain.OcrJobStatus;
 import com.healthtrace.report.domain.ProcessingStatus;
-import com.healthtrace.report.service.ReviewService;
+import com.healthtrace.report.service.OcrSubmissionService;
+import com.healthtrace.report.service.ReviewConfirmService;
 import com.healthtrace.report.service.ReviewViews.ConfirmCommand;
 import com.healthtrace.report.service.ReviewViews.ConfirmResult;
 import com.healthtrace.report.service.ReviewViews.DraftReport;
@@ -63,7 +64,10 @@ class ReviewWebTest {
     private MockMvc mvc;
 
     @MockitoBean
-    private ReviewService reviewService;
+    private OcrSubmissionService submissionService;
+
+    @MockitoBean
+    private ReviewConfirmService confirmService;
 
     private static RequestPostProcessor account(long id) {
         return authentication(new UsernamePasswordAuthenticationToken(new AccountPrincipal(id), null, List.of()));
@@ -90,7 +94,7 @@ class ReviewWebTest {
                         .header("X-CSRF-TOKEN", token))
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.code").value("HT-2001"));
-        verify(reviewService, never()).submitOcr(anyLong(), anyLong(), anyBoolean());
+        verify(submissionService, never()).submitOcr(anyLong(), anyLong(), anyBoolean());
     }
 
     @Test
@@ -98,12 +102,12 @@ class ReviewWebTest {
         mvc.perform(post("/api/v1/reports/21/ocr-jobs?ocrConsent=true").with(account(7L)))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.code").value("HT-2005"));
-        verify(reviewService, never()).submitOcr(anyLong(), anyLong(), anyBoolean());
+        verify(submissionService, never()).submitOcr(anyLong(), anyLong(), anyBoolean());
     }
 
     @Test
     void submitOcrWithoutConsentPassesFalseAndReturns403() throws Exception {
-        given(reviewService.submitOcr(7L, 21L, false))
+        given(submissionService.submitOcr(7L, 21L, false))
                 .willThrow(new ApiException(ErrorCode.OCR_CONSENT_REQUIRED));
         MockHttpSession session = new MockHttpSession();
         String token = csrfToken(session);
@@ -111,12 +115,12 @@ class ReviewWebTest {
                         .header("X-CSRF-TOKEN", token))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.code").value("HT-4003"));
-        verify(reviewService, never()).submitOcr(7L, 21L, true);
+        verify(submissionService, never()).submitOcr(7L, 21L, true);
     }
 
     @Test
     void submitOcrWithConsentReturns202() throws Exception {
-        given(reviewService.submitOcr(7L, 21L, true)).willReturn(jobView());
+        given(submissionService.submitOcr(7L, 21L, true)).willReturn(jobView());
         MockHttpSession session = new MockHttpSession();
         String token = csrfToken(session);
         mvc.perform(post("/api/v1/reports/21/ocr-jobs?ocrConsent=true").session(session).with(account(7L))
@@ -129,7 +133,7 @@ class ReviewWebTest {
 
     @Test
     void submitOcrOnOthersReportIs404() throws Exception {
-        given(reviewService.submitOcr(8L, 21L, true)).willThrow(new ApiException(ErrorCode.RESOURCE_NOT_FOUND));
+        given(submissionService.submitOcr(8L, 21L, true)).willThrow(new ApiException(ErrorCode.RESOURCE_NOT_FOUND));
         MockHttpSession session = new MockHttpSession();
         String token = csrfToken(session);
         mvc.perform(post("/api/v1/reports/21/ocr-jobs?ocrConsent=true").session(session).with(account(8L))
@@ -144,12 +148,12 @@ class ReviewWebTest {
     void draftRequiresLogin() throws Exception {
         mvc.perform(get("/api/v1/reports/21/draft"))
                 .andExpect(status().isUnauthorized());
-        verify(reviewService, never()).getDraft(anyLong(), anyLong());
+        verify(confirmService, never()).getDraft(anyLong(), anyLong());
     }
 
     @Test
     void draftOfOthersReportIs404() throws Exception {
-        given(reviewService.getDraft(8L, 21L)).willThrow(new ApiException(ErrorCode.RESOURCE_NOT_FOUND));
+        given(confirmService.getDraft(8L, 21L)).willThrow(new ApiException(ErrorCode.RESOURCE_NOT_FOUND));
         mvc.perform(get("/api/v1/reports/21/draft").with(account(8L)))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.code").value("HT-3001"));
@@ -159,7 +163,7 @@ class ReviewWebTest {
     void draftReturnsReportAndObservations() throws Exception {
         DraftReport report = new DraftReport(21L, 11L, "血常规", LocalDate.of(2026, 10, 20),
                 ProcessingStatus.PENDING_CONFIRMATION, 2L);
-        given(reviewService.getDraft(7L, 21L)).willReturn(new DraftView(report, List.of(), null, null, List.of()));
+        given(confirmService.getDraft(7L, 21L)).willReturn(new DraftView(report, List.of(), null, null, List.of()));
         mvc.perform(get("/api/v1/reports/21/draft").with(account(7L)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.report.version").value(2))
@@ -178,12 +182,12 @@ class ReviewWebTest {
         mvc.perform(post("/api/v1/reports/21/confirmation").with(account(7L)).contentType(JSON).content(CONFIRM_BODY))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.code").value("HT-2005"));
-        verify(reviewService, never()).confirm(anyLong(), anyLong(), any());
+        verify(confirmService, never()).confirm(anyLong(), anyLong(), any());
     }
 
     @Test
     void confirmReturnsConfirmedResult() throws Exception {
-        given(reviewService.confirm(anyLong(), anyLong(), any(ConfirmCommand.class)))
+        given(confirmService.confirm(anyLong(), anyLong(), any(ConfirmCommand.class)))
                 .willReturn(new ConfirmResult(21L, ProcessingStatus.CONFIRMED, 3L, LocalDate.of(2026, 10, 20), 1));
         MockHttpSession session = new MockHttpSession();
         String token = csrfToken(session);
@@ -196,7 +200,7 @@ class ReviewWebTest {
 
     @Test
     void confirmVersionConflictIs409() throws Exception {
-        given(reviewService.confirm(anyLong(), anyLong(), any(ConfirmCommand.class)))
+        given(confirmService.confirm(anyLong(), anyLong(), any(ConfirmCommand.class)))
                 .willThrow(new ApiException(ErrorCode.VERSION_CONFLICT));
         MockHttpSession session = new MockHttpSession();
         String token = csrfToken(session);
@@ -208,7 +212,7 @@ class ReviewWebTest {
 
     @Test
     void confirmValidationErrorsCarryRowFields() throws Exception {
-        given(reviewService.confirm(anyLong(), anyLong(), any(ConfirmCommand.class)))
+        given(confirmService.confirm(anyLong(), anyLong(), any(ConfirmCommand.class)))
                 .willThrow(new ApiException(ErrorCode.VALIDATION_FAILED, "请求字段校验失败",
                         List.of(new FieldErrorItem("observations[0].originalValue", "REQUIRED", "请填写结果"))));
         MockHttpSession session = new MockHttpSession();

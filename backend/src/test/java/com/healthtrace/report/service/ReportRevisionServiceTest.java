@@ -14,7 +14,6 @@ import com.healthtrace.report.mapper.OcrJobMapper;
 import com.healthtrace.report.mapper.PhotoMapper;
 import com.healthtrace.report.mapper.ReportMapper;
 import com.healthtrace.report.mapper.ReportRevisionMapper;
-import com.healthtrace.report.ocr.OcrService;
 import com.healthtrace.report.ocr.OcrTextCipher;
 import com.healthtrace.report.service.ReviewViews.ObservationInput;
 import com.healthtrace.report.service.RevisionViews.ChangeType;
@@ -23,8 +22,6 @@ import com.healthtrace.report.service.RevisionViews.ReviseResult;
 import com.healthtrace.report.service.RevisionViews.RevisionView;
 import com.healthtrace.rights.audit.AuditAction;
 import com.healthtrace.rights.audit.AuditService;
-import com.healthtrace.rights.consent.ConsentService;
-import com.healthtrace.profile.mapper.ProfileMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -73,9 +70,8 @@ class ReportRevisionServiceTest {
         Clock clock = Clock.fixed(Instant.parse("2026-10-27T08:00:00Z"), ZoneOffset.UTC);
         byte[] key = Base64.getDecoder().decode("MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=");
         cipher = new OcrTextCipher(newFieldCipher(key));
-        ReviewService reviewService = new ReviewService(access, reportMapper, photoMapper, mock(OcrJobMapper.class),
-                observationMapper, mock(OcrService.class), cipher, mock(OcrJobProcessor.class),
-                mock(ProfileMapper.class), mock(ConsentService.class), auditService, clock);
+        ReviewConfirmService reviewService = new ReviewConfirmService(access, reportMapper, photoMapper,
+                mock(OcrJobMapper.class), observationMapper, cipher, auditService, clock);
         service = new ReportRevisionService(access, reportMapper, photoMapper, observationMapper, revisionMapper,
                 reviewService, cipher, JsonMapper.builder().build(), auditService, clock);
     }

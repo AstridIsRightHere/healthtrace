@@ -48,7 +48,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-class ReportServiceTest {
+class ReportQueryServiceTest {
 
     private static final long ACCOUNT = 7L;
     private static final long PROFILE = 11L;
@@ -67,36 +67,14 @@ class ReportServiceTest {
     private final StorageService storage = mock(StorageService.class);
     private final Clock clock = Clock.fixed(Instant.parse("2026-10-25T10:00:00Z"), ZoneOffset.UTC);
 
-    private ReportService service;
+    private ReportQueryService service;
 
     @BeforeEach
     void setUp() {
-        service = new ReportService(reportMapper, photoMapper, profileMapper, accountMapper, storage,
-                mock(com.healthtrace.rights.audit.AuditService.class), clock);
+        service = new ReportQueryService(new ReportAccess(reportMapper, profileMapper, accountMapper), reportMapper,
+                photoMapper, profileMapper, storage);
         given(profileMapper.findActiveByAccountAndProfile(ACCOUNT, PROFILE)).willReturn(new ProfileRecord());
-        given(accountMapper.findById(ACCOUNT)).willReturn(account(true));
         given(reportMapper.findById(REPORT)).willReturn(report(ProcessingStatus.UPLOADING));
-        given(photoMapper.findReportIdsByDigest(anyLong(), anyString())).willReturn(List.of());
-        doAnswer(inv -> {
-            Photo photo = inv.getArgument(0);
-            // 同一对象随后会被改为 COMPLETE，这里记录插入时刻的状态
-            statusAtInsert = photo.getStorageStatus();
-            photo.setId(99L);
-            return 1;
-        }).when(photoMapper).insert(any(Photo.class));
-        doAnswer(inv -> {
-            inv.<Report>getArgument(0).setId(REPORT);
-            return 1;
-        }).when(reportMapper).insert(any(Report.class));
-    }
-
-    private StorageStatus statusAtInsert;
-
-    private static Account account(boolean verified) {
-        Account account = new Account();
-        account.setId(ACCOUNT);
-        account.setEmailVerifiedAt(verified ? LocalDateTime.of(2026, 10, 1, 0, 0) : null);
-        return account;
     }
 
     private static Report report(ProcessingStatus status) {
@@ -109,60 +87,8 @@ class ReportServiceTest {
         return report;
     }
 
-    private static MockMultipartFile file(String part, byte[] content) {
-        return new MockMultipartFile(part, "x.bin", "application/octet-stream", content);
-    }
-
     private static ErrorCode codeOf(Throwable t) {
         return ((ApiException) t).getErrorCode();
-    }
-
-    private PhotoUploadResult upload(MockMultipartFile original, MockMultipartFile preview, DuplicateDecision d) {
-        return service.uploadPhoto(ACCOUNT, REPORT, original, preview, 1, d);
-    }
-
-    // ------------------------------------------------------------ create / list
-
-    @Test
-    void createReportStartsUploadingWithUnknownType() {
-        var view = service.createReport(ACCOUNT, PROFILE, "  血常规  ", LocalDate.of(2026, 10, 20));
-
-        ArgumentCaptor<Report> captor = ArgumentCaptor.forClass(Report.class);
-        verify(reportMapper).insert(captor.capture());
-        Report saved = captor.getValue();
-        assertThat(saved.getCreatedBy()).isEqualTo(ACCOUNT);
-        assertThat(saved.getProcessingStatus()).isEqualTo(ProcessingStatus.UPLOADING);
-        assertThat(saved.getVisibilityStatus()).isEqualTo(VisibilityStatus.NORMAL);
-        assertThat(saved.getTitle()).isEqualTo("血常规");
-        assertThat(view.processingStatus()).isEqualTo(ProcessingStatus.UPLOADING);
-    }
-
-    @Test
-    void createReportOnOthersProfileIsNotFound() {
-        assertThatThrownBy(() -> service.createReport(ACCOUNT, 999L, null, null))
-                .satisfies(e -> assertThat(codeOf(e).code()).isEqualTo("HT-3001"));
-        verify(reportMapper, never()).insert(any());
-    }
-
-    @Test
-    void createReportRequiresVerifiedEmail() {
-        given(accountMapper.findById(ACCOUNT)).willReturn(account(false));
-
-        assertThatThrownBy(() -> service.createReport(ACCOUNT, PROFILE, null, null))
-                .satisfies(e -> assertThat(codeOf(e)).isEqualTo(ErrorCode.EMAIL_NOT_VERIFIED));
-    }
-
-    @Test
-    void createReportRejectsFutureExaminationDate() {
-        assertThatThrownBy(() -> service.createReport(ACCOUNT, PROFILE, null, LocalDate.of(2026, 10, 28)))
-                .satisfies(e -> assertThat(codeOf(e)).isEqualTo(ErrorCode.VALIDATION_FAILED));
-    }
-
-    @Test
-    void createReportRejectsOverlongTitle() {
-        String title = "报".repeat(ReportPolicy.TITLE_MAX_LENGTH + 1);
-        assertThatThrownBy(() -> service.createReport(ACCOUNT, PROFILE, title, null))
-                .satisfies(e -> assertThat(codeOf(e)).isEqualTo(ErrorCode.VALIDATION_FAILED));
     }
 
     @Test
@@ -267,163 +193,6 @@ class ReportServiceTest {
         assertThatThrownBy(() -> service.listConfirmedGroups(ACCOUNT, 999L))
                 .satisfies(e -> assertThat(codeOf(e).code()).isEqualTo("HT-3001"));
         verify(reportMapper, never()).findConfirmedByProfile(anyLong(), any());
-    }
-
-    // ------------------------------------------------------------ upload
-
-    @Test
-    void uploadJpegWithPreviewStoresBothAndCompletes() {
-        PhotoUploadResult result = upload(file("original", JPEG), file("preview", JPEG), DuplicateDecision.ASK);
-
-        assertThat(result.result()).isEqualTo(UploadOutcome.UPLOADED);
-        assertThat(result.photo().hasPreview()).isTrue();
-        ArgumentCaptor<Photo> captor = ArgumentCaptor.forClass(Photo.class);
-        verify(photoMapper).insert(captor.capture());
-        Photo saved = captor.getValue();
-        assertThat(statusAtInsert).isEqualTo(StorageStatus.PENDING);
-        assertThat(saved.getMediaType()).isEqualTo("image/jpeg");
-        assertThat(saved.getObjectKey()).startsWith("profiles/" + PROFILE + "/reports/" + REPORT + "/");
-        assertThat(saved.getContentDigest()).hasSize(64);
-        verify(storage).put(eq(saved.getObjectKey()), any(InputStream.class), eq((long) JPEG.length), eq("image/jpeg"));
-        verify(storage).put(eq(saved.getPreviewObjectKey()), any(InputStream.class), anyLong(), eq("image/jpeg"));
-        verify(photoMapper).updateStorageStatus(eq(99L), eq(StorageStatus.COMPLETE), any());
-    }
-
-    @Test
-    void uploadDetectsTypeByMagicNumberNotDeclaredContentType() {
-        MockMultipartFile disguised = new MockMultipartFile("original", "a.jpg", "image/jpeg", EXE);
-
-        assertThatThrownBy(() -> upload(disguised, null, DuplicateDecision.ASK))
-                .satisfies(e -> assertThat(codeOf(e)).isEqualTo(ErrorCode.UNSUPPORTED_MEDIA_TYPE));
-        verify(photoMapper, never()).insert(any());
-    }
-
-    @Test
-    void heicAndPdfAreStoredOriginalOnly() {
-        assertThat(upload(file("original", HEIC), null, DuplicateDecision.ASK).photo().mediaType())
-                .isEqualTo("image/heic");
-        assertThat(upload(file("original", PDF), null, DuplicateDecision.ASK).photo().mediaType())
-                .isEqualTo("application/pdf");
-    }
-
-    @Test
-    void previewNotAllowedForPdf() {
-        assertThatThrownBy(() -> upload(file("original", PDF), file("preview", JPEG), DuplicateDecision.ASK))
-                .satisfies(e -> assertThat(codeOf(e)).isEqualTo(ErrorCode.VALIDATION_FAILED));
-    }
-
-    @Test
-    void previewMustBeJpegOrPng() {
-        assertThatThrownBy(() -> upload(file("original", PNG), file("preview", PDF), DuplicateDecision.ASK))
-                .satisfies(e -> assertThat(codeOf(e)).isEqualTo(ErrorCode.UNSUPPORTED_MEDIA_TYPE));
-    }
-
-    @Test
-    void oversizedFileRejected() {
-        MockMultipartFile big = mock(MockMultipartFile.class);
-        when(big.isEmpty()).thenReturn(false);
-        when(big.getSize()).thenReturn(ReportPolicy.MAX_FILE_BYTES + 1);
-
-        assertThatThrownBy(() -> upload(big, null, DuplicateDecision.ASK))
-                .satisfies(e -> assertThat(codeOf(e)).isEqualTo(ErrorCode.FILE_TOO_LARGE));
-    }
-
-    @Test
-    void twentyFirstFileRejected() {
-        given(photoMapper.countActiveByReport(REPORT)).willReturn(ReportPolicy.MAX_FILES_PER_REPORT);
-
-        assertThatThrownBy(() -> upload(file("original", JPEG), null, DuplicateDecision.ASK))
-                .satisfies(e -> assertThat(codeOf(e)).isEqualTo(ErrorCode.REPORT_FILE_LIMIT));
-    }
-
-    @Test
-    void accountQuotaEnforced() {
-        given(photoMapper.sumActiveBytesByAccount(ACCOUNT)).willReturn(ReportPolicy.MAX_BYTES_PER_ACCOUNT - 1);
-
-        assertThatThrownBy(() -> upload(file("original", JPEG), null, DuplicateDecision.ASK))
-                .satisfies(e -> assertThat(codeOf(e)).isEqualTo(ErrorCode.STORAGE_QUOTA_EXCEEDED));
-    }
-
-    @Test
-    void pageOrderOutOfRangeRejected() {
-        assertThatThrownBy(() -> service.uploadPhoto(ACCOUNT, REPORT, file("original", JPEG), null, 21,
-                DuplicateDecision.ASK))
-                .satisfies(e -> assertThat(codeOf(e)).isEqualTo(ErrorCode.VALIDATION_FAILED));
-    }
-
-    @Test
-    void uploadRequiresVerifiedEmail() {
-        given(accountMapper.findById(ACCOUNT)).willReturn(account(false));
-
-        assertThatThrownBy(() -> upload(file("original", JPEG), null, DuplicateDecision.ASK))
-                .satisfies(e -> assertThat(codeOf(e)).isEqualTo(ErrorCode.EMAIL_NOT_VERIFIED));
-    }
-
-    @Test
-    void uploadToOthersReportIsNotFound() {
-        Report foreign = report(ProcessingStatus.UPLOADING);
-        foreign.setProfileId(999L);
-        given(reportMapper.findById(REPORT)).willReturn(foreign);
-
-        assertThatThrownBy(() -> upload(file("original", JPEG), null, DuplicateDecision.ASK))
-                .satisfies(e -> assertThat(codeOf(e).code()).isEqualTo("HT-3001"));
-        verify(storage, never()).put(anyString(), any(), anyLong(), anyString());
-    }
-
-    @Test
-    void uploadRejectedAfterReportLeftUploading() {
-        given(reportMapper.findById(REPORT)).willReturn(report(ProcessingStatus.RECOGNIZING));
-
-        assertThatThrownBy(() -> upload(file("original", JPEG), null, DuplicateDecision.ASK))
-                .satisfies(e -> assertThat(codeOf(e)).isEqualTo(ErrorCode.REPORT_STATE_CONFLICT));
-    }
-
-    @Test
-    void duplicateWithAskIsNotStored() {
-        given(photoMapper.findReportIdsByDigest(eq(PROFILE), anyString())).willReturn(List.of(5L, 8L));
-
-        PhotoUploadResult result = upload(file("original", JPEG), null, DuplicateDecision.ASK);
-
-        assertThat(result.result()).isEqualTo(UploadOutcome.DUPLICATE_SUSPECTED);
-        assertThat(result.existingReportIds()).containsExactly(5L, 8L);
-        verify(photoMapper, never()).insert(any());
-        verify(storage, never()).put(anyString(), any(), anyLong(), anyString());
-    }
-
-    @Test
-    void duplicateWithKeepIsStored() {
-        given(photoMapper.findReportIdsByDigest(eq(PROFILE), anyString())).willReturn(List.of(5L));
-
-        PhotoUploadResult result = upload(file("original", JPEG), null, DuplicateDecision.KEEP);
-
-        assertThat(result.result()).isEqualTo(UploadOutcome.UPLOADED);
-        verify(photoMapper).insert(any());
-    }
-
-    @Test
-    void storageFailureMarksFailedAndCleansUp() {
-        given(storage.put(anyString(), any(), anyLong(), anyString())).willThrow(new StorageException("boom"));
-
-        assertThatThrownBy(() -> upload(file("original", JPEG), file("preview", JPEG), DuplicateDecision.ASK))
-                .satisfies(e -> assertThat(codeOf(e)).isEqualTo(ErrorCode.INTERNAL_ERROR));
-
-        ArgumentCaptor<Photo> captor = ArgumentCaptor.forClass(Photo.class);
-        verify(photoMapper).insert(captor.capture());
-        verify(storage).delete(captor.getValue().getObjectKey());
-        verify(storage).delete(captor.getValue().getPreviewObjectKey());
-        verify(photoMapper).updateStorageStatus(eq(99L), eq(StorageStatus.FAILED), any());
-        verify(photoMapper, never()).updateStorageStatus(eq(99L), eq(StorageStatus.COMPLETE), any());
-    }
-
-    @Test
-    void concurrentSamePageIsConflict() {
-        doAnswer(inv -> {
-            throw new DuplicateKeyException("uk_photo_report_page");
-        }).when(photoMapper).insert(any(Photo.class));
-
-        assertThatThrownBy(() -> upload(file("original", JPEG), null, DuplicateDecision.ASK))
-                .satisfies(e -> assertThat(codeOf(e)).isEqualTo(ErrorCode.REPORT_STATE_CONFLICT));
-        verify(storage, never()).put(anyString(), any(), anyLong(), anyString());
     }
 
     // ------------------------------------------------------------ access

@@ -12,7 +12,9 @@ import com.healthtrace.report.domain.DuplicateDecision;
 import com.healthtrace.report.domain.ProcessingStatus;
 import com.healthtrace.report.domain.ReportListFilter;
 import com.healthtrace.report.domain.ReportType;
-import com.healthtrace.report.service.ReportService;
+import com.healthtrace.common.web.EnumConverterConfig;
+import com.healthtrace.report.service.ReportQueryService;
+import com.healthtrace.report.service.ReportUploadService;
 import com.healthtrace.report.service.ReportViews.PhotoContent;
 import com.healthtrace.report.service.ReportViews.PhotoUploadResult;
 import com.healthtrace.report.service.ReportViews.PhotoVariant;
@@ -58,7 +60,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * 报告上传接口安全与契约测试（TC-004/TC-005）：未登录 401、无 CSRF 403、越权 404、413、415、未验证邮箱 403、重复提示。
  */
 @WebMvcTest(controllers = {ReportController.class, CsrfController.class})
-@Import({SecurityConfig.class, ErrorResponseWriter.class, ClockConfig.class})
+@Import({SecurityConfig.class, ErrorResponseWriter.class, ClockConfig.class, EnumConverterConfig.class})
 @TestPropertySource(properties = {
         "SPRING_PROFILES_ACTIVE=test",
         "healthtrace.security.email-encryption-key=MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=",
@@ -73,7 +75,10 @@ class ReportWebTest {
     private MockMvc mvc;
 
     @MockitoBean
-    private ReportService reportService;
+    private ReportUploadService uploadService;
+
+    @MockitoBean
+    private ReportQueryService queryService;
 
     private static RequestPostProcessor account(long id) {
         return authentication(new UsernamePasswordAuthenticationToken(new AccountPrincipal(id), null, List.of()));
@@ -104,7 +109,7 @@ class ReportWebTest {
                         .contentType(JSON).content("{}"))
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.code").value("HT-2001"));
-        verify(reportService, never()).createReport(anyLong(), anyLong(), any(), any());
+        verify(uploadService, never()).createReport(anyLong(), anyLong(), any(), any());
     }
 
     @Test
@@ -112,12 +117,12 @@ class ReportWebTest {
         mvc.perform(post("/api/v1/patient-profiles/11/reports").with(account(7L)).contentType(JSON).content("{}"))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.code").value("HT-2005"));
-        verify(reportService, never()).createReport(anyLong(), anyLong(), any(), any());
+        verify(uploadService, never()).createReport(anyLong(), anyLong(), any(), any());
     }
 
     @Test
     void createReportReturns201() throws Exception {
-        given(reportService.createReport(7L, 11L, "血常规", LocalDate.of(2026, 10, 20))).willReturn(reportView());
+        given(uploadService.createReport(7L, 11L, "血常规", LocalDate.of(2026, 10, 20))).willReturn(reportView());
         MockHttpSession session = new MockHttpSession();
         String token = csrfToken(session);
         mvc.perform(post("/api/v1/patient-profiles/11/reports").with(account(7L)).session(session)
@@ -130,7 +135,7 @@ class ReportWebTest {
 
     @Test
     void createReportOnOthersProfileIs404() throws Exception {
-        given(reportService.createReport(eq(7L), eq(99L), any(), any()))
+        given(uploadService.createReport(eq(7L), eq(99L), any(), any()))
                 .willThrow(new ApiException(ErrorCode.RESOURCE_NOT_FOUND));
         MockHttpSession session = new MockHttpSession();
         String token = csrfToken(session);
@@ -142,7 +147,7 @@ class ReportWebTest {
 
     @Test
     void createReportByUnverifiedAccountIs403() throws Exception {
-        given(reportService.createReport(eq(7L), eq(11L), any(), any()))
+        given(uploadService.createReport(eq(7L), eq(11L), any(), any()))
                 .willThrow(new ApiException(ErrorCode.EMAIL_NOT_VERIFIED));
         MockHttpSession session = new MockHttpSession();
         String token = csrfToken(session);
@@ -150,7 +155,7 @@ class ReportWebTest {
                         .header("X-CSRF-TOKEN", token).contentType(JSON).content("{}"))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.code").value("HT-2003"))
-                .andExpect(jsonPath("$.message").value("请先验证邮箱"));
+                .andExpect(jsonPath("$.detail").value("请先验证邮箱"));
     }
 
     // ------------------------------------------------------------ upload
@@ -161,12 +166,12 @@ class ReportWebTest {
                         .with(account(7L)))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.code").value("HT-2005"));
-        verify(reportService, never()).uploadPhoto(anyLong(), anyLong(), any(), any(), any(), any());
+        verify(uploadService, never()).uploadPhoto(anyLong(), anyLong(), any(), any(), any(), any());
     }
 
     @Test
     void uploadReturns201WhenSaved() throws Exception {
-        given(reportService.uploadPhoto(eq(7L), eq(21L), any(), any(), eq(1), eq(DuplicateDecision.ASK)))
+        given(uploadService.uploadPhoto(eq(7L), eq(21L), any(), any(), eq(1), eq(DuplicateDecision.ASK)))
                 .willReturn(new PhotoUploadResult(UploadOutcome.UPLOADED,
                         new PhotoView(99L, 21L, 1, "image/jpeg", JPEG.length, false), List.of()));
         MockHttpSession session = new MockHttpSession();
@@ -180,7 +185,7 @@ class ReportWebTest {
 
     @Test
     void uploadDuplicateSuspectedReturns200WithExistingReports() throws Exception {
-        given(reportService.uploadPhoto(eq(7L), eq(21L), any(), any(), eq(1), eq(DuplicateDecision.ASK)))
+        given(uploadService.uploadPhoto(eq(7L), eq(21L), any(), any(), eq(1), eq(DuplicateDecision.ASK)))
                 .willReturn(new PhotoUploadResult(UploadOutcome.DUPLICATE_SUSPECTED, null, List.of(5L)));
         MockHttpSession session = new MockHttpSession();
         String token = csrfToken(session);
@@ -193,7 +198,7 @@ class ReportWebTest {
 
     @Test
     void uploadKeepDecisionIsPassedThrough() throws Exception {
-        given(reportService.uploadPhoto(eq(7L), eq(21L), any(), any(), eq(1), eq(DuplicateDecision.KEEP)))
+        given(uploadService.uploadPhoto(eq(7L), eq(21L), any(), any(), eq(1), eq(DuplicateDecision.KEEP)))
                 .willReturn(new PhotoUploadResult(UploadOutcome.UPLOADED,
                         new PhotoView(100L, 21L, 1, "image/jpeg", JPEG.length, false), List.of()));
         MockHttpSession session = new MockHttpSession();
@@ -229,7 +234,7 @@ class ReportWebTest {
 
     @Test
     void uploadTooLargeIs413() throws Exception {
-        given(reportService.uploadPhoto(anyLong(), anyLong(), any(), any(), any(), any()))
+        given(uploadService.uploadPhoto(anyLong(), anyLong(), any(), any(), any(), any()))
                 .willThrow(new ApiException(ErrorCode.FILE_TOO_LARGE));
         MockHttpSession session = new MockHttpSession();
         String token = csrfToken(session);
@@ -241,7 +246,7 @@ class ReportWebTest {
 
     @Test
     void uploadUnsupportedTypeIs415() throws Exception {
-        given(reportService.uploadPhoto(anyLong(), anyLong(), any(), any(), any(), any()))
+        given(uploadService.uploadPhoto(anyLong(), anyLong(), any(), any(), any(), any()))
                 .willThrow(new ApiException(ErrorCode.UNSUPPORTED_MEDIA_TYPE));
         MockHttpSession session = new MockHttpSession();
         String token = csrfToken(session);
@@ -253,7 +258,7 @@ class ReportWebTest {
 
     @Test
     void uploadToOthersReportIs404() throws Exception {
-        given(reportService.uploadPhoto(eq(7L), eq(999L), any(), any(), any(), any()))
+        given(uploadService.uploadPhoto(eq(7L), eq(999L), any(), any(), any(), any()))
                 .willThrow(new ApiException(ErrorCode.RESOURCE_NOT_FOUND));
         MockHttpSession session = new MockHttpSession();
         String token = csrfToken(session);
@@ -273,7 +278,7 @@ class ReportWebTest {
 
     @Test
     void listDraftDelegatesWithFilter() throws Exception {
-        given(reportService.listReports(7L, 11L, ReportListFilter.DRAFT, null))
+        given(queryService.listReports(7L, 11L, ReportListFilter.DRAFT, null))
                 .willReturn(new ListPage<>(List.of(), 0));
         mvc.perform(get("/api/v1/patient-profiles/11/reports").param("status", "DRAFT").with(account(7L)))
                 .andExpect(status().isOk())
@@ -282,7 +287,7 @@ class ReportWebTest {
 
     @Test
     void listDraftPassesLimitAndReturnsTotal() throws Exception {
-        given(reportService.listReports(7L, 11L, ReportListFilter.DRAFT, 5))
+        given(queryService.listReports(7L, 11L, ReportListFilter.DRAFT, 5))
                 .willReturn(new ListPage<>(List.of(), 12));
         mvc.perform(get("/api/v1/patient-profiles/11/reports").param("status", "DRAFT").param("limit", "5")
                         .with(account(7L)))
@@ -298,12 +303,12 @@ class ReportWebTest {
                     .andExpect(jsonPath("$.code").value("HT-1001"))
                     .andExpect(jsonPath("$.fieldErrors[0].field").value("limit"));
         }
-        verify(reportService, never()).listReports(anyLong(), anyLong(), any(), any());
+        verify(queryService, never()).listReports(anyLong(), anyLong(), any(), any());
     }
 
     @Test
     void listConfirmedDelegatesWithFilter() throws Exception {
-        given(reportService.listReports(7L, 11L, ReportListFilter.CONFIRMED, null)).willReturn(new ListPage<>(List.of(
+        given(queryService.listReports(7L, 11L, ReportListFilter.CONFIRMED, null)).willReturn(new ListPage<>(List.of(
                 new com.healthtrace.report.service.ReportViews.ReportListItem(31L, "甲功", ReportType.UNKNOWN,
                         LocalDate.of(2026, 10, 1), ProcessingStatus.CONFIRMED,
                         LocalDateTime.of(2026, 10, 2, 9, 0), 1, 5L, true, null)), 1));
@@ -317,7 +322,7 @@ class ReportWebTest {
 
     @Test
     void listConfirmedOnOthersProfileIs404() throws Exception {
-        given(reportService.listReports(7L, 99L, ReportListFilter.CONFIRMED, null))
+        given(queryService.listReports(7L, 99L, ReportListFilter.CONFIRMED, null))
                 .willThrow(new ApiException(ErrorCode.RESOURCE_NOT_FOUND));
         mvc.perform(get("/api/v1/patient-profiles/99/reports").param("status", "CONFIRMED").with(account(7L)))
                 .andExpect(status().isNotFound())
@@ -329,7 +334,7 @@ class ReportWebTest {
         mvc.perform(get("/api/v1/patient-profiles/11/reports").param("status", "ALL").with(account(7L)))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("HT-1001"));
-        verify(reportService, never()).listReports(anyLong(), anyLong(), any(), any());
+        verify(queryService, never()).listReports(anyLong(), anyLong(), any(), any());
     }
 
     @Test
@@ -337,7 +342,7 @@ class ReportWebTest {
         var item = new com.healthtrace.report.service.ReportViews.ReportListItem(31L, "血常规", ReportType.UNKNOWN,
                 LocalDate.of(2026, 10, 1), ProcessingStatus.CONFIRMED,
                 LocalDateTime.of(2026, 10, 2, 9, 0), 1, 5L, true, null);
-        given(reportService.listConfirmedGroups(7L, 11L)).willReturn(List.of(
+        given(queryService.listConfirmedGroups(7L, 11L)).willReturn(List.of(
                 new com.healthtrace.report.service.ReportViews.ReportGroup("血常规", "血常规", 1,
                         LocalDate.of(2026, 10, 1), List.of(item))));
         mvc.perform(get("/api/v1/patient-profiles/11/report-groups").with(account(7L)))
@@ -350,7 +355,7 @@ class ReportWebTest {
 
     @Test
     void listReportGroupsOnOthersProfileIs404() throws Exception {
-        given(reportService.listConfirmedGroups(7L, 99L)).willThrow(new ApiException(ErrorCode.RESOURCE_NOT_FOUND));
+        given(queryService.listConfirmedGroups(7L, 99L)).willThrow(new ApiException(ErrorCode.RESOURCE_NOT_FOUND));
         mvc.perform(get("/api/v1/patient-profiles/99/report-groups").with(account(7L)))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.code").value("HT-3001"));
@@ -359,18 +364,18 @@ class ReportWebTest {
     @Test
     void listReportGroupsRequiresLogin() throws Exception {
         mvc.perform(get("/api/v1/patient-profiles/11/report-groups")).andExpect(status().isUnauthorized());
-        verify(reportService, never()).listConfirmedGroups(anyLong(), anyLong());
+        verify(queryService, never()).listConfirmedGroups(anyLong(), anyLong());
     }
 
     @Test
     void accessPhotoRequiresLogin() throws Exception {
         mvc.perform(get("/api/v1/photos/99/access")).andExpect(status().isUnauthorized());
-        verify(reportService, never()).openPhoto(anyLong(), anyLong(), any());
+        verify(queryService, never()).openPhoto(anyLong(), anyLong(), any());
     }
 
     @Test
     void accessOthersPhotoIs404() throws Exception {
-        given(reportService.openPhoto(7L, 99L, PhotoVariant.PREVIEW))
+        given(queryService.openPhoto(7L, 99L, PhotoVariant.PREVIEW))
                 .willThrow(new ApiException(ErrorCode.RESOURCE_NOT_FOUND));
         mvc.perform(get("/api/v1/photos/99/access").with(account(7L)))
                 .andExpect(status().isNotFound())
@@ -379,7 +384,7 @@ class ReportWebTest {
 
     @Test
     void accessLocalPhotoStreamsWithNoStore() throws Exception {
-        given(reportService.openPhoto(7L, 99L, PhotoVariant.ORIGINAL))
+        given(queryService.openPhoto(7L, 99L, PhotoVariant.ORIGINAL))
                 .willReturn(new PhotoContent(null, new ByteArrayInputStream(JPEG), "image/jpeg", JPEG.length));
         mvc.perform(get("/api/v1/photos/99/access").param("variant", "original").with(account(7L)))
                 .andExpect(status().isOk())
@@ -391,7 +396,7 @@ class ReportWebTest {
 
     @Test
     void accessSignedPhotoRedirects() throws Exception {
-        given(reportService.openPhoto(7L, 99L, PhotoVariant.PREVIEW))
+        given(queryService.openPhoto(7L, 99L, PhotoVariant.PREVIEW))
                 .willReturn(new PhotoContent(URI.create("https://oss.example.com/x?sig=1"), null, "image/jpeg", 10));
         mvc.perform(get("/api/v1/photos/99/access").with(account(7L)))
                 .andExpect(status().isFound())

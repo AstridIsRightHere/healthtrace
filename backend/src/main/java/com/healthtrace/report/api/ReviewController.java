@@ -1,7 +1,8 @@
 package com.healthtrace.report.api;
 
 import com.healthtrace.account.domain.AccountPrincipal;
-import com.healthtrace.report.service.ReviewService;
+import com.healthtrace.report.service.OcrSubmissionService;
+import com.healthtrace.report.service.ReviewConfirmService;
 import com.healthtrace.report.service.ReviewViews.ConfirmCommand;
 import com.healthtrace.report.service.ReviewViews.ConfirmResult;
 import com.healthtrace.report.service.ReviewViews.DraftReport;
@@ -24,10 +25,12 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 public class ReviewController {
 
-    private final ReviewService reviewService;
+    private final OcrSubmissionService submissionService;
+    private final ReviewConfirmService confirmService;
 
-    public ReviewController(ReviewService reviewService) {
-        this.reviewService = reviewService;
+    public ReviewController(OcrSubmissionService submissionService, ReviewConfirmService confirmService) {
+        this.submissionService = submissionService;
+        this.confirmService = confirmService;
     }
 
     /**
@@ -38,23 +41,23 @@ public class ReviewController {
     public OcrJobView submitOcr(@AuthenticationPrincipal AccountPrincipal principal,
                                 @PathVariable long reportId,
                                 @RequestParam(name = "ocrConsent", required = false) Boolean ocrConsent) {
-        return reviewService.submitOcr(principal.accountId(), reportId, Boolean.TRUE.equals(ocrConsent));
+        return submissionService.submitOcr(principal.accountId(), reportId, Boolean.TRUE.equals(ocrConsent));
     }
 
     @GetMapping("/api/v1/reports/{reportId}/ocr-jobs/latest")
     public OcrJobView latestJob(@AuthenticationPrincipal AccountPrincipal principal, @PathVariable long reportId) {
-        return reviewService.getLatestJob(principal.accountId(), reportId);
+        return submissionService.getLatestJob(principal.accountId(), reportId);
     }
 
     /** 拒绝第三方识别或识别失败后转为手动录入。 */
     @PostMapping("/api/v1/reports/{reportId}/manual-entry")
     public DraftReport manualEntry(@AuthenticationPrincipal AccountPrincipal principal, @PathVariable long reportId) {
-        return reviewService.startManualEntry(principal.accountId(), reportId);
+        return submissionService.startManualEntry(principal.accountId(), reportId);
     }
 
     @GetMapping("/api/v1/reports/{reportId}/draft")
     public DraftView draft(@AuthenticationPrincipal AccountPrincipal principal, @PathVariable long reportId) {
-        return reviewService.getDraft(principal.accountId(), reportId);
+        return confirmService.getDraft(principal.accountId(), reportId);
     }
 
     /** 整页确认：草稿转为正式记录，报告进入 CONFIRMED；version 用于乐观锁。 */
@@ -62,6 +65,6 @@ public class ReviewController {
     public ConfirmResult confirm(@AuthenticationPrincipal AccountPrincipal principal,
                                  @PathVariable long reportId,
                                  @RequestBody ConfirmCommand command) {
-        return reviewService.confirm(principal.accountId(), reportId, command);
+        return confirmService.confirm(principal.accountId(), reportId, command);
     }
 }

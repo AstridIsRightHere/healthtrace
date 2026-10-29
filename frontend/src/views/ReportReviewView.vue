@@ -281,7 +281,7 @@ function reviseErrorText(error: unknown): string {
   if (isAxiosError<ApiErrorBody>(error)) {
     const data = error.response?.data
     if (error.response?.status === 409 && data?.code === 'HT-3002') return '内容已被修改，请刷新后重试'
-    if (error.response?.status === 400 && data?.fieldErrors?.some((f) => f.reason === 'NO_CHANGE')) {
+    if (error.response?.status === 400 && data?.fieldErrors?.some((f) => f.reasonCode === 'NO_CHANGE')) {
       return '没有需要保存的修改'
     }
   }

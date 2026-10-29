@@ -1,15 +1,26 @@
 import axios, { type AxiosError } from 'axios'
 
-/** 后端统一错误响应（docs/08） */
+/** 字段级校验错误（ProblemDetail 扩展字段 fieldErrors 的元素） */
 export interface ApiFieldError {
   field: string
-  reason: string
+  /** 校验原因码，如 NotNull、NO_CHANGE（后端 JSON 键为 reasonCode） */
+  reasonCode: string
   message: string
 }
 
+/**
+ * 后端统一错误响应：RFC 9457 ProblemDetail（application/problem+json）。
+ * 标准字段 type/title/status/detail/instance；业务码 code、traceId、fieldErrors、retryable 为扩展字段。
+ */
 export interface ApiErrorBody {
+  type?: string
+  title?: string
+  status?: number
+  /** 面向用户的错误说明 */
+  detail?: string
+  instance?: string
+  /** 业务错误码，如 HT-2001 */
   code: string
-  message: string
   traceId?: string
   fieldErrors?: ApiFieldError[]
   retryable?: boolean
@@ -112,7 +123,7 @@ api.interceptors.response.use(
 export function errorMessage(error: unknown, fallback = '请求失败，请稍后重试'): string {
   if (axios.isAxiosError<ApiErrorBody>(error)) {
     if (!error.response) return '无法连接服务器，请检查网络后重试'
-    if (error.response.data?.message) return error.response.data.message
+    if (error.response.data?.detail) return error.response.data.detail
   }
   return fallback
 }

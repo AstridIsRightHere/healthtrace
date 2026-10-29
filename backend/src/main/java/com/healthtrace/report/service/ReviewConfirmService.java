@@ -3,8 +3,6 @@ package com.healthtrace.report.service;
 import com.healthtrace.common.web.ApiException;
 import com.healthtrace.common.web.ErrorCode;
 import com.healthtrace.common.web.FieldErrorItem;
-import com.healthtrace.profile.domain.ProfileRecord;
-import com.healthtrace.profile.mapper.ProfileMapper;
 import com.healthtrace.report.domain.Observation;
 import com.healthtrace.report.domain.ObservationStatus;
 import com.healthtrace.report.domain.OcrJob;
@@ -16,7 +14,6 @@ import com.healthtrace.report.mapper.ObservationMapper;
 import com.healthtrace.report.mapper.OcrJobMapper;
 import com.healthtrace.report.mapper.PhotoMapper;
 import com.healthtrace.report.mapper.ReportMapper;
-import com.healthtrace.report.ocr.OcrService;
 import com.healthtrace.report.ocr.OcrTextCipher;
 import com.healthtrace.report.service.ReportViews.PhotoView;
 import com.healthtrace.report.service.ReviewViews.ConfirmCommand;
@@ -28,19 +25,14 @@ import com.healthtrace.report.service.ReviewViews.ObservationView;
 import com.healthtrace.report.service.ReviewViews.OcrJobView;
 import com.healthtrace.rights.audit.AuditAction;
 import com.healthtrace.rights.audit.AuditService;
-import com.healthtrace.rights.consent.ConsentService;
-import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.transaction.support.TransactionSynchronization;
-import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.time.Clock;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
-import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -49,144 +41,43 @@ import java.util.Objects;
 import java.util.Set;
 
 /**
- * OCR 提交、草稿查看与整页确认（FR-006、FR-007、FR-014、FR-015）。
+ * 草稿查看与整页确认（FR-007、FR-015）。
  * <ul>
- *   <li>提交识别必须显式同意第三方 OCR（NFR-002），否则 403 HT-4003，不会调用供应商。</li>
  *   <li>确认前的观测值一律是 DRAFT，不会进入图表；确认使用报告 version 乐观锁。</li>
  *   <li>置信度只来自供应商；用户修改过的行置信度置空，新增行没有置信度，绝不伪造。</li>
  * </ul>
+ * 行校验与规整（validate/isEdited/apply）同时供已确认报告的修改 {@link ReportRevisionService} 复用；
+ * 提交识别与手动录入见 {@link OcrSubmissionService}。
  */
 @Service
-public class ReviewService {
+public class ReviewConfirmService {
 
     static final int NAME_MAX = 160;
     static final int VALUE_MAX = 160;
     static final int UNIT_MAX = 80;
     static final int REFERENCE_MAX = 160;
     static final int MAX_OBSERVATIONS = 200;
-    static final String NO_COMPLETE_PHOTO = "报告还没有上传完成的照片";
-
-    private static final Set<ProcessingStatus> SUBMITTABLE =
-            EnumSet.of(ProcessingStatus.UPLOADING, ProcessingStatus.FAILED);
 
     private final ReportAccess access;
     private final ReportMapper reportMapper;
     private final PhotoMapper photoMapper;
     private final OcrJobMapper ocrJobMapper;
     private final ObservationMapper observationMapper;
-    private final OcrService ocrService;
     private final OcrTextCipher cipher;
-    private final OcrJobProcessor processor;
-    private final ProfileMapper profileMapper;
-    private final ConsentService consentService;
     private final AuditService auditService;
     private final Clock clock;
 
-    public ReviewService(ReportAccess access, ReportMapper reportMapper, PhotoMapper photoMapper,
-                         OcrJobMapper ocrJobMapper, ObservationMapper observationMapper, OcrService ocrService,
-                         OcrTextCipher cipher, OcrJobProcessor processor, ProfileMapper profileMapper,
-                         ConsentService consentService, AuditService auditService, Clock clock) {
-        this.profileMapper = profileMapper;
-        this.consentService = consentService;
-        this.auditService = auditService;
+    public ReviewConfirmService(ReportAccess access, ReportMapper reportMapper, PhotoMapper photoMapper,
+                                OcrJobMapper ocrJobMapper, ObservationMapper observationMapper,
+                                OcrTextCipher cipher, AuditService auditService, Clock clock) {
         this.access = access;
         this.reportMapper = reportMapper;
         this.photoMapper = photoMapper;
         this.ocrJobMapper = ocrJobMapper;
         this.observationMapper = observationMapper;
-        this.ocrService = ocrService;
         this.cipher = cipher;
-        this.processor = processor;
+        this.auditService = auditService;
         this.clock = clock;
-    }
-
-    // ---------------------------------------------------------------- 提交识别
-
-    /**
-     * 创建 OCR 任务。幂等：报告已在识别中时返回当前活动任务。
-     * 顺序：归属校验 → 同意校验 → 邮箱验证 → 状态/照片校验 → 落库 → 提交后异步执行。
-     */
-    @Transactional
-    public OcrJobView submitOcr(long accountId, long reportId, boolean ocrConsent) {
-        access.requireOwnedReport(accountId, reportId);
-        if (!ocrConsent) {
-            throw new ApiException(ErrorCode.OCR_CONSENT_REQUIRED);
-        }
-        access.requireVerifiedEmail(accountId);
-
-        Report report = reportMapper.findByIdForUpdate(reportId);
-        if (report.getProcessingStatus() == ProcessingStatus.RECOGNIZING) {
-            OcrJob active = ocrJobMapper.findLatestByReport(reportId);
-            if (active != null && active.getStatus().isActive()) {
-                return OcrJobView.of(active);
-            }
-        }
-        if (!SUBMITTABLE.contains(report.getProcessingStatus())) {
-            throw new ApiException(ErrorCode.REPORT_STATE_CONFLICT);
-        }
-        if (photoMapper.findCompleteByReport(reportId).isEmpty()) {
-            throw new ApiException(ErrorCode.REPORT_STATE_CONFLICT, NO_COMPLETE_PHOTO);
-        }
-
-        LocalDateTime now = now();
-        // 本次发送第三方的特定同意：持久化完整版本记录，任务引用其 id（与任务同事务提交/回滚）
-        ProfileRecord profile = profileMapper.findActiveByAccountAndProfile(accountId, report.getProfileId());
-        long consentId = consentService.grantOcr(accountId, report.getProfileId(),
-                profile == null ? null : profile.getRelationship(), now);
-        OcrJob job = new OcrJob();
-        job.setReportId(reportId);
-        job.setProvider(ocrService.provider());
-        job.setConsentRecordId(consentId);
-        job.setConsentDeclaredAt(now);
-        job.setCreatedBy(accountId);
-        job.setStatus(OcrJobStatus.PENDING);
-        job.setAttemptCount(0);
-        job.setCreatedAt(now);
-        job.setUpdatedAt(now);
-        try {
-            ocrJobMapper.insert(job);
-        } catch (DuplicateKeyException e) {
-            // 并发提交：唯一约束保证同一报告只有一个活动任务
-            OcrJob active = ocrJobMapper.findLatestByReport(reportId);
-            if (active != null) {
-                return OcrJobView.of(active);
-            }
-            throw new ApiException(ErrorCode.REPORT_STATE_CONFLICT);
-        }
-        reportMapper.transitionStatus(reportId, SUBMITTABLE, ProcessingStatus.RECOGNIZING, now);
-
-        long jobId = job.getId();
-        auditService.success(accountId, AuditAction.REPORT_OCR_SUBMIT, AuditService.token("report", reportId));
-        runAfterCommit(() -> processor.processAsync(jobId));
-        return OcrJobView.of(job);
-    }
-
-    /** 拒绝第三方 OCR 或识别失败后，转为手动录入草稿。 */
-    @Transactional
-    public DraftReport startManualEntry(long accountId, long reportId) {
-        access.requireOwnedReport(accountId, reportId);
-        Report report = reportMapper.findByIdForUpdate(reportId);
-        if (report.getProcessingStatus() != ProcessingStatus.PENDING_CONFIRMATION) {
-            if (!SUBMITTABLE.contains(report.getProcessingStatus())) {
-                throw new ApiException(ErrorCode.REPORT_STATE_CONFLICT);
-            }
-            // 与识别一致：没有任何上传完成的照片时不允许进入录入，避免产生无原图可对照的空报告
-            if (photoMapper.findCompleteByReport(reportId).isEmpty()) {
-                throw new ApiException(ErrorCode.REPORT_STATE_CONFLICT, NO_COMPLETE_PHOTO);
-            }
-            reportMapper.transitionStatus(reportId, SUBMITTABLE, ProcessingStatus.PENDING_CONFIRMATION, now());
-            report.setProcessingStatus(ProcessingStatus.PENDING_CONFIRMATION);
-        }
-        return toDraftReport(report);
-    }
-
-    public OcrJobView getLatestJob(long accountId, long reportId) {
-        access.requireOwnedReport(accountId, reportId);
-        OcrJob job = ocrJobMapper.findLatestByReport(reportId);
-        if (job == null) {
-            throw new ApiException(ErrorCode.RESOURCE_NOT_FOUND);
-        }
-        return OcrJobView.of(job);
     }
 
     // ---------------------------------------------------------------- 草稿详情
@@ -194,7 +85,7 @@ public class ReviewService {
     public DraftView getDraft(long accountId, long reportId) {
         Report report = access.requireOwnedReport(accountId, reportId);
         List<PhotoView> photos = photoMapper.findCompleteByReport(reportId).stream()
-                .map(ReviewService::toPhotoView)
+                .map(ReviewConfirmService::toPhotoView)
                 .toList();
         OcrJob job = ocrJobMapper.findLatestByReport(reportId);
         String rawText = job != null && job.getStatus() == OcrJobStatus.SUCCEEDED
@@ -204,7 +95,7 @@ public class ReviewService {
                 ? ObservationStatus.FORMAL
                 : ObservationStatus.DRAFT;
         List<ObservationView> observations = observationMapper.findByReport(reportId, wanted).stream()
-                .map(ReviewService::toObservationView)
+                .map(ReviewConfirmService::toObservationView)
                 .toList();
         return new DraftView(toDraftReport(report), photos, job == null ? null : OcrJobView.of(job), rawText,
                 observations);
@@ -377,24 +268,11 @@ public class ReviewService {
         return t.isEmpty() ? null : t;
     }
 
-    private static void runAfterCommit(Runnable action) {
-        if (TransactionSynchronizationManager.isSynchronizationActive()) {
-            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
-                @Override
-                public void afterCommit() {
-                    action.run();
-                }
-            });
-        } else {
-            action.run();
-        }
-    }
-
     private LocalDateTime now() {
         return LocalDateTime.now(clock).truncatedTo(ChronoUnit.SECONDS);
     }
 
-    private static DraftReport toDraftReport(Report r) {
+    static DraftReport toDraftReport(Report r) {
         return new DraftReport(r.getId(), r.getProfileId(), r.getTitle(), r.getExaminationDate(),
                 r.getProcessingStatus(), r.getVersion());
     }

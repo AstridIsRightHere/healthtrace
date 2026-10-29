@@ -61,7 +61,7 @@ public class ReportRevisionService {
     private final PhotoMapper photoMapper;
     private final ObservationMapper observationMapper;
     private final ReportRevisionMapper revisionMapper;
-    private final ReviewService reviewService;
+    private final ReviewConfirmService reviewService;
     private final OcrTextCipher cipher;
     private final JsonMapper jsonMapper;
     private final AuditService auditService;
@@ -69,7 +69,7 @@ public class ReportRevisionService {
 
     public ReportRevisionService(ReportAccess access, ReportMapper reportMapper, PhotoMapper photoMapper,
                                  ObservationMapper observationMapper, ReportRevisionMapper revisionMapper,
-                                 ReviewService reviewService, OcrTextCipher cipher, JsonMapper jsonMapper,
+                                 ReviewConfirmService reviewService, OcrTextCipher cipher, JsonMapper jsonMapper,
                                  AuditService auditService, Clock clock) {
         this.access = access;
         this.reportMapper = reportMapper;
@@ -92,7 +92,7 @@ public class ReportRevisionService {
         // 复用确认时的字段校验（版本号、日期、条数、长度）
         reviewService.validate(new ConfirmCommand(command.version(), command.examinationDate(),
                 command.observations()));
-        String reason = ReviewService.trimToNull(command.reason());
+        String reason = ReviewConfirmService.trimToNull(command.reason());
         if (reason != null && reason.codePointCount(0, reason.length()) > REASON_MAX) {
             throw validation("reason", "TOO_LONG", "修改原因最多 " + REASON_MAX + " 字");
         }
@@ -146,7 +146,7 @@ public class ReportRevisionService {
                 changes.add(new RevisionChange(ChangeType.ADDED, null, snapshot(in)));
             } else {
                 Observation o = formal.get(in.id());
-                if (ReviewService.isEdited(o, in)) {
+                if (ReviewConfirmService.isEdited(o, in)) {
                     changes.add(new RevisionChange(ChangeType.UPDATED, snapshot(o), snapshot(in)));
                 }
             }
@@ -170,8 +170,8 @@ public class ReportRevisionService {
             ObservationInput in = inputs.get(i);
             if (in.id() != null) {
                 Observation o = formal.get(in.id());
-                boolean edited = ReviewService.isEdited(o, in);
-                ReviewService.apply(o, in, i, now);
+                boolean edited = ReviewConfirmService.isEdited(o, in);
+                ReviewConfirmService.apply(o, in, i, now);
                 if (edited) {
                     o.setConfidence(null);
                 }
@@ -182,7 +182,7 @@ public class ReportRevisionService {
                 o.setReportId(reportId);
                 o.setStatus(ObservationStatus.FORMAL);
                 o.setCreatedAt(now);
-                ReviewService.apply(o, in, i, now);
+                ReviewConfirmService.apply(o, in, i, now);
                 o.setConfidence(null);
                 o.setExaminationDate(newDate);
                 o.setConfirmedAt(now);
@@ -237,8 +237,8 @@ public class ReportRevisionService {
     }
 
     private static ObservationSnapshot snapshot(ObservationInput in) {
-        return new ObservationSnapshot(ReviewService.trim(in.originalName()), ReviewService.trim(in.originalValue()),
-                ReviewService.trimToNull(in.unitText()), ReviewService.trimToNull(in.referenceText()));
+        return new ObservationSnapshot(ReviewConfirmService.trim(in.originalName()), ReviewConfirmService.trim(in.originalValue()),
+                ReviewConfirmService.trimToNull(in.unitText()), ReviewConfirmService.trimToNull(in.referenceText()));
     }
 
     private static String text(LocalDate date) {

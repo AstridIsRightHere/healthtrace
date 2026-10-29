@@ -62,8 +62,8 @@ public class SecurityConfig {
                         .sessionFixation(fixation -> fixation.none()))
                 .addFilterBefore(new SessionAbsoluteTimeoutFilter(clock), SecurityContextHolderFilter.class)
                 .exceptionHandling(ex -> ex
-                        .authenticationEntryPoint((req, res, e) -> errorWriter.write(res, ErrorCode.UNAUTHENTICATED))
-                        .accessDeniedHandler((req, res, e) -> errorWriter.write(res,
+                        .authenticationEntryPoint((req, res, e) -> errorWriter.write(req, res, ErrorCode.UNAUTHENTICATED))
+                        .accessDeniedHandler((req, res, e) -> errorWriter.write(req, res,
                                 e instanceof CsrfException ? ErrorCode.CSRF_FAILED : ErrorCode.ACCESS_DENIED)))
                 .headers(headers -> headers.frameOptions(frame -> frame.deny()))
                 // 登录与退出由 SessionController 实现 JSON 接口，关闭表单/Basic/默认退出页

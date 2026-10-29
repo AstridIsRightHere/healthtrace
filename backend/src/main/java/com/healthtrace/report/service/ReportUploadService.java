@@ -1,30 +1,22 @@
 package com.healthtrace.report.service;
 
-import com.healthtrace.account.domain.Account;
-import com.healthtrace.account.mapper.AccountMapper;
 import com.healthtrace.common.web.ApiException;
 import com.healthtrace.common.web.ErrorCode;
 import com.healthtrace.common.web.FieldErrorItem;
-import com.healthtrace.common.web.ListPage;
 import com.healthtrace.profile.mapper.ProfileMapper;
 import com.healthtrace.report.domain.DetectedMediaType;
 import com.healthtrace.report.domain.DuplicateDecision;
 import com.healthtrace.report.domain.Photo;
 import com.healthtrace.report.domain.ProcessingStatus;
 import com.healthtrace.report.domain.Report;
-import com.healthtrace.report.domain.ReportListFilter;
 import com.healthtrace.report.domain.ReportPolicy;
-import com.healthtrace.report.domain.ReportSummary;
 import com.healthtrace.report.domain.ReportType;
 import com.healthtrace.report.domain.StorageStatus;
 import com.healthtrace.report.domain.VisibilityStatus;
 import com.healthtrace.report.mapper.PhotoMapper;
 import com.healthtrace.report.mapper.ReportMapper;
-import com.healthtrace.report.service.ReportViews.PhotoContent;
 import com.healthtrace.report.service.ReportViews.PhotoUploadResult;
-import com.healthtrace.report.service.ReportViews.PhotoVariant;
 import com.healthtrace.report.service.ReportViews.PhotoView;
-import com.healthtrace.report.service.ReportViews.ReportListItem;
 import com.healthtrace.report.service.ReportViews.ReportView;
 import com.healthtrace.rights.audit.AuditAction;
 import com.healthtrace.rights.audit.AuditService;
@@ -37,7 +29,6 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.net.URI;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.Clock;
@@ -47,38 +38,37 @@ import java.time.ZoneOffset;
 import java.time.temporal.ChronoUnit;
 import java.util.HexFormat;
 import java.util.List;
-import java.util.Optional;
 import java.util.UUID;
 
 /**
- * 报告草稿与图片上传（FR-004、FR-005，DEC-008）。
+ * 报告草稿创建与图片上传（FR-004、FR-005，DEC-008）：类型探测、大小与配额校验、内容摘要去重、写入存储。
  * <p>
- * 访问控制：任何 reportId / photoId 都先解析到 profileId，再要求当前账号持有该档案的 ACTIVE 授权；
+ * 访问控制：任何 reportId 都先解析到 profileId，再要求当前账号持有该档案的 ACTIVE 授权；
  * 不存在与无权访问统一返回 404 HT-3001，避免暴露其他档案的资源是否存在。
  * <p>
  * 一致性：图片先以 PENDING 落库占用页序 → 写入存储 → 标记 COMPLETE；写入失败则删除已写对象并标记 FAILED。
  * 页序 1..20 + 唯一约束 uk_photo_report_page 在并发下兜底“单报告最多 20 个文件”。
  */
 @Service
-public class ReportService {
+public class ReportUploadService {
 
-    private static final Logger log = LoggerFactory.getLogger(ReportService.class);
+    private static final Logger log = LoggerFactory.getLogger(ReportUploadService.class);
 
+    private final ReportAccess access;
     private final ReportMapper reportMapper;
     private final PhotoMapper photoMapper;
     private final ProfileMapper profileMapper;
-    private final AccountMapper accountMapper;
     private final StorageService storageService;
     private final AuditService auditService;
     private final Clock clock;
 
-    public ReportService(ReportMapper reportMapper, PhotoMapper photoMapper, ProfileMapper profileMapper,
-                         AccountMapper accountMapper, StorageService storageService, AuditService auditService,
-                         Clock clock) {
+    public ReportUploadService(ReportAccess access, ReportMapper reportMapper, PhotoMapper photoMapper,
+                               ProfileMapper profileMapper, StorageService storageService,
+                               AuditService auditService, Clock clock) {
+        this.access = access;
         this.reportMapper = reportMapper;
         this.photoMapper = photoMapper;
         this.profileMapper = profileMapper;
-        this.accountMapper = accountMapper;
         this.storageService = storageService;
         this.auditService = auditService;
         this.clock = clock;
@@ -86,8 +76,10 @@ public class ReportService {
 
     /** 新建报告草稿（UPLOADING）。标题、检查日期可选，可在确认阶段再补。 */
     public ReportView createReport(long accountId, long profileId, String title, LocalDate examinationDate) {
-        requireProfileAccess(accountId, profileId);
-        requireVerifiedEmail(accountId);
+        if (profileMapper.findActiveByAccountAndProfile(accountId, profileId) == null) {
+            throw new ApiException(ErrorCode.RESOURCE_NOT_FOUND);
+        }
+        access.requireVerifiedEmail(accountId);
         String normalizedTitle = normalizeTitle(title);
         if (examinationDate != null && examinationDate.isAfter(LocalDate.now(clock.withZone(ZoneOffset.ofHours(14))))) {
             // 以全球最早时区为界，避免用户本地“今天”被误判为未来
@@ -116,11 +108,11 @@ public class ReportService {
      */
     public PhotoUploadResult uploadPhoto(long accountId, long reportId, MultipartFile original,
                                          MultipartFile preview, Integer pageOrder, DuplicateDecision decision) {
-        Report report = requireOwnedReport(accountId, reportId);
+        Report report = access.requireOwnedReport(accountId, reportId);
         if (report.getProcessingStatus() != ProcessingStatus.UPLOADING) {
             throw new ApiException(ErrorCode.REPORT_STATE_CONFLICT, "报告已提交识别，不能继续添加图片");
         }
-        requireVerifiedEmail(accountId);
+        access.requireVerifiedEmail(accountId);
 
         if (original == null || original.isEmpty()) {
             throw validation("original", "NotNull", "请选择要上传的文件");
@@ -207,88 +199,7 @@ public class ReportService {
         return PhotoUploadResult.uploaded(toView(photo));
     }
 
-    /**
-     * 报告列表。支持 DRAFT（待处理）与 CONFIRMED（已确认）筛选；limit 为空表示全部，
-     * total 为忽略 limit 时满足筛选条件的总数（SQL LIMIT + 独立 COUNT）。
-     */
-    public ListPage<ReportListItem> listReports(long accountId, long profileId, ReportListFilter filter,
-                                                Integer limit) {
-        requireProfileAccess(accountId, profileId);
-        return switch (filter) {
-            case DRAFT -> ListPage.of(reportMapper.findPendingByProfile(profileId, limit), limit,
-                    () -> reportMapper.countPendingByProfile(profileId), ReportService::toListItem);
-            case CONFIRMED -> ListPage.of(reportMapper.findConfirmedByProfile(profileId, limit), limit,
-                    () -> reportMapper.countConfirmedByProfile(profileId), ReportService::toListItem);
-            case null -> throw validation("status", "NotSupported", "当前仅支持 status=DRAFT 或 CONFIRMED");
-        };
-    }
-
-    /** 已确认报告按种类聚合（标题清洗后归组，无标题按类型），供报告对比先选类型再选报告。 */
-    public List<ReportViews.ReportGroup> listConfirmedGroups(long accountId, long profileId) {
-        return ReportGrouping.group(listReports(accountId, profileId, ReportListFilter.CONFIRMED, null).items());
-    }
-
-    /**
-     * 读取图片。支持签名直链的存储返回跳转地址；本地存储由应用回传内容。
-     * 请求预览图但该图片没有预览（HEIC/PDF）时视为不存在，前端显示占位图标。
-     */
-    public PhotoContent openPhoto(long accountId, long photoId, PhotoVariant variant) {
-        Photo photo = photoMapper.findById(photoId);
-        if (photo == null || photo.getStorageStatus() != StorageStatus.COMPLETE) {
-            throw notFound();
-        }
-        requireOwnedReport(accountId, photo.getReportId());
-
-        String key;
-        String mediaType;
-        long byteSize;
-        if (variant == PhotoVariant.PREVIEW) {
-            if (photo.getPreviewObjectKey() == null) {
-                throw notFound();
-            }
-            key = photo.getPreviewObjectKey();
-            mediaType = photo.getPreviewMediaType();
-            byteSize = photo.getPreviewByteSize();
-        } else {
-            key = photo.getObjectKey();
-            mediaType = photo.getMediaType();
-            byteSize = photo.getByteSize();
-        }
-
-        Optional<URI> url = storageService.createAccessUrl(key, ReportPolicy.ACCESS_URL_TTL);
-        if (url.isPresent()) {
-            return new PhotoContent(url.get(), null, mediaType, byteSize);
-        }
-        return new PhotoContent(null, storageService.open(key), mediaType, byteSize);
-    }
-
     // ---------------------------------------------------------------- helpers
-
-    private void requireProfileAccess(long accountId, long profileId) {
-        if (profileMapper.findActiveByAccountAndProfile(accountId, profileId) == null) {
-            throw notFound();
-        }
-    }
-
-    private Report requireOwnedReport(long accountId, long reportId) {
-        Report report = reportMapper.findById(reportId);
-        if (report == null || report.getVisibilityStatus() != VisibilityStatus.NORMAL) {
-            throw notFound();
-        }
-        requireProfileAccess(accountId, report.getProfileId());
-        return report;
-    }
-
-    /** US-001：未验证邮箱的账号不能进行真实上传。 */
-    private void requireVerifiedEmail(long accountId) {
-        Account account = accountMapper.findById(accountId);
-        if (account == null) {
-            throw new ApiException(ErrorCode.UNAUTHENTICATED);
-        }
-        if (account.getEmailVerifiedAt() == null) {
-            throw new ApiException(ErrorCode.EMAIL_NOT_VERIFIED);
-        }
-    }
 
     private static void requireWithinSizeLimit(MultipartFile file) {
         if (file.getSize() > ReportPolicy.MAX_FILE_BYTES) {
@@ -363,10 +274,6 @@ public class ReportService {
         return LocalDateTime.now(clock).truncatedTo(ChronoUnit.SECONDS);
     }
 
-    private static ApiException notFound() {
-        return new ApiException(ErrorCode.RESOURCE_NOT_FOUND);
-    }
-
     private static ApiException validation(String field, String reason, String message) {
         return new ApiException(ErrorCode.VALIDATION_FAILED, message,
                 List.of(new FieldErrorItem(field, reason, message)));
@@ -380,11 +287,5 @@ public class ReportService {
     private static PhotoView toView(Photo p) {
         return new PhotoView(p.getId(), p.getReportId(), p.getPageOrder(), p.getMediaType(), p.getByteSize(),
                 p.getPreviewObjectKey() != null);
-    }
-
-    private static ReportListItem toListItem(ReportSummary s) {
-        return new ReportListItem(s.getId(), s.getTitle(), s.getReportType(), s.getExaminationDate(),
-                s.getProcessingStatus(), s.getCreatedAt(), s.getPhotoCount(), s.getCoverPhotoId(),
-                s.getCoverHasPreview(), s.getLastOcrErrorCode());
     }
 }

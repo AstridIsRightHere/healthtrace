@@ -57,8 +57,22 @@
 | FR-010 | [19 数据字典：OBSERVATION](19-数据字典.md) | examination_date、unit_text、specimen_text、method_text、result_kind支撑可比组与真实时间轴 |
 | FR-011 | [19 数据字典：OBSERVATION参考范围](19-数据字典.md) | 实际字段为reference_text、reference_low、reference_high与abnormal_flag；没有名为reference的单一字段，不另造字段 |
 | FR-015 | [19 数据字典：REPORT.processing_status](19-数据字典.md) | 区分上传、识别、待确认、已确认、失败，配合OCR_JOB重试状态 |
-| FR-012 | [08 核心接口清单：home](08-核心接口清单草案.md) | GET /api/v1/patient-profiles/{profileId}/home：首页聚合 |
+| FR-009 | [08 核心接口清单：followed-metrics](08-核心接口清单草案.md) | GET/POST /api/v1/patient-profiles/{profileId}/followed-metrics：整表替换保存关注列表与顺序；新档案默认关注 WBC、HGB、PLT、ALT、AST、CREA；GET /api/v1/metric-definitions 供“管理关注”选择 |
+| FR-012 | [08 核心接口清单：metric-summaries](08-核心接口清单草案.md) | 不建 /home 聚合接口（2026-10-29 评审决定）；首页由 followed-metrics、metric-summaries（一次请求取全部关注卡）、reports?status=DRAFT&limit=3、visits?limit=3 组成 |
 | FR-013 | [07 页面清单：PG-011/PG-012](07-页面清单与结构图.md) | 就诊时间线、就诊编辑/详情；检查日与就诊日分别展示 |
+
+## 实现与自动化测试追踪（2026-10-29）
+
+本节记录已合入代码和自动化测试，只作开发证据，**不替代主验收**，上方 TC 状态不变。接口字段以运行时 Swagger/OpenAPI（dev 环境 `/swagger-ui/index.html`）为准。
+
+| 需求 | 实现位置 | 自动化测试 | 说明 |
+| --- | --- | --- | --- |
+| FR-009 关注排序（部分） | V8 `followed_metric` 表；`indicator/api/FollowController`；前端 `stores/follow.ts`、`components/home/ManageFollowDialog.vue` | FollowWebTest、FollowServiceTest、MysqlIntegrationTest、FollowedMetrics.test.ts | 已实现标准指标关注、整表保存顺序、默认 6 项和管理弹窗；搜索、临时指标、归并提示与撤销尚未实现 |
+| FR-012 首页 | `metric-summaries` 批量接口；`components/home/*` 分别加载 | TrendWebTest、TrendServiceTest、FollowedMetrics.test.ts | 关注卡单次批量请求（每次固定 2 条 SQL）；加载失败显示“加载失败，请点击重试”，不再吞错 |
+| NFR-001 权限隔离 | 各 Service 按账号校验档案归属，越权统一 404 HT-3001 | 各 *WebTest / *ServiceTest 越权用例 | 跨账号访问返回与不存在一致 |
+| NFR-005 性能 | 趋势查询 from/to 下界在 SQL 过滤；`/metrics` 用 GROUP BY 计数；报告与就诊列表 `limit` + `total` | MysqlIntegrationTest、ListPagingIntegrationTest（Testcontainers MySQL 8.4） | 首页 API 请求数从每卡一次趋势请求降为固定 6 个；尚无 DEC-009 阈值实测记录 |
+| NFR-008 可维护 | 错误响应采用 RFC 9457 ProblemDetail（`application/problem+json`，扩展字段 code/traceId/fieldErrors/retryable）；Swagger 仅 dev 开启；大 Service 按职责拆分 | 全量后端测试 + 前端 lint/Vitest/build（CI） | 仍为单体，未引入新基础设施 |
+| NFR-010 日志审计 | `TraceIdFilter` 写 MDC 并返回 `X-Trace-Id`，错误体 traceId 与日志一致；报告修改写 audit_event | GlobalExceptionHandler / TraceIdFilter 相关测试、ReportRevisionService 测试 | 日志只记 traceId 与异常类别，不记录病历正文 |
 
 ## 状态与变更规则
 

@@ -1,5 +1,7 @@
 package com.healthtrace.storage;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Service;
@@ -25,6 +27,8 @@ import java.util.Optional;
 @Service
 @ConditionalOnProperty(prefix = "healthtrace.storage", name = "type", havingValue = "local")
 public class LocalStorageService implements StorageService {
+
+    private static final Logger log = LoggerFactory.getLogger(LocalStorageService.class);
 
     private static final int BUFFER_SIZE = 64 * 1024;
 
@@ -68,8 +72,9 @@ public class LocalStorageService implements StorageService {
             if (temp != null) {
                 try {
                     Files.deleteIfExists(temp);
-                } catch (IOException ignored) {
-                    // 临时文件清理失败不覆盖原始异常
+                } catch (IOException cleanupFailure) {
+                    // 临时文件清理失败不覆盖原始异常，只留调试日志（对象键不含个人信息）
+                    log.debug("临时文件清理失败 objectKey={} temp={}", objectKey, temp, cleanupFailure);
                 }
             }
         }

@@ -17,6 +17,7 @@ import org.springframework.test.web.servlet.request.RequestPostProcessor;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
@@ -30,6 +31,7 @@ import static org.springframework.security.test.web.servlet.request.SecurityMock
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -60,11 +62,18 @@ class ErrorHandlingWebTest {
             return Map.of("ok", "1");
         }
 
+        @GetMapping(PROBE + "/enum")
+        String enumParam(@RequestParam("mode") Mode mode) {
+            return mode.name();
+        }
+
         @PostMapping(value = PROBE, consumes = MediaType.APPLICATION_JSON_VALUE)
         Map<String, String> post(@RequestBody Map<String, String> body) {
             return body;
         }
     }
+
+    enum Mode { FAST, SLOW }
 
     private static RequestPostProcessor account(long id) {
         return authentication(new UsernamePasswordAuthenticationToken(new AccountPrincipal(id), null, List.of()));
@@ -81,8 +90,16 @@ class ErrorHandlingWebTest {
     void unknownPathIsEndpointNotFoundForLoggedInUser() throws Exception {
         MvcResult result = mvc.perform(get("/api/v1/no-such-endpoint").with(account(7)))
                 .andExpect(status().isNotFound())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+                .andExpect(jsonPath("$.type").value("https://healthtrace.app/problems/endpoint-not-found"))
+                .andExpect(jsonPath("$.title").value("Not Found"))
+                .andExpect(jsonPath("$.status").value(404))
+                .andExpect(jsonPath("$.detail").value("接口不存在"))
+                .andExpect(jsonPath("$.instance").value("/api/v1/no-such-endpoint"))
                 .andExpect(jsonPath("$.code").value("HT-1005"))
                 .andExpect(jsonPath("$.retryable").value(false))
+                .andExpect(jsonPath("$.fieldErrors").doesNotExist())
+                .andExpect(jsonPath("$.message").doesNotExist())
                 .andReturn();
         assertTraceIdMatches(result);
     }
@@ -119,9 +136,28 @@ class ErrorHandlingWebTest {
     void unauthenticatedResponseCarriesSameTraceId() throws Exception {
         MvcResult result = mvc.perform(get(PROBE))
                 .andExpect(status().isUnauthorized())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+                .andExpect(jsonPath("$.type").value("https://healthtrace.app/problems/unauthenticated"))
+                .andExpect(jsonPath("$.title").value("Unauthorized"))
+                .andExpect(jsonPath("$.status").value(401))
+                .andExpect(jsonPath("$.detail").value("未登录或会话已失效"))
+                .andExpect(jsonPath("$.instance").value(PROBE))
                 .andExpect(jsonPath("$.code").value("HT-2001"))
+                .andExpect(jsonPath("$.retryable").value(false))
                 .andReturn();
         assertTraceIdMatches(result);
+    }
+
+    @Test
+    void invalidEnumQueryParamIsFieldValidationError() throws Exception {
+        mvc.perform(get(PROBE + "/enum").param("mode", "bogus").with(account(7)))
+                .andExpect(status().isBadRequest())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+                .andExpect(jsonPath("$.code").value("HT-1001"))
+                .andExpect(jsonPath("$.detail").value("参数 mode 取值无效，可选值：FAST、SLOW"))
+                .andExpect(jsonPath("$.fieldErrors[0].field").value("mode"))
+                .andExpect(jsonPath("$.fieldErrors[0].reasonCode").value("Invalid"))
+                .andExpect(jsonPath("$.fieldErrors[0].message").value("参数 mode 取值无效，可选值：FAST、SLOW"));
     }
 
     @Test

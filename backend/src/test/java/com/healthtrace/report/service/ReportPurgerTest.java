@@ -79,9 +79,11 @@ class ReportPurgerTest {
 
         var order = inOrder(revisionMapper, visitMapper, observationMapper, ocrJobMapper, photoMapper, reportMapper,
                 ledgerService);
-        order.verify(revisionMapper).deleteByReport(21L);
+        // 结果行引用修改记录且有自引用（supersedes_id）：先断开自引用、删结果，再删修改记录
         order.verify(visitMapper).unlinkReport(21L);
+        order.verify(observationMapper).unlinkSupersedes(21L);
         order.verify(observationMapper).deleteByReport(21L);
+        order.verify(revisionMapper).deleteByReport(21L);
         order.verify(ocrJobMapper).deleteByReport(21L);
         order.verify(photoMapper).deleteByReport(21L);
         order.verify(reportMapper).deleteById(21L);

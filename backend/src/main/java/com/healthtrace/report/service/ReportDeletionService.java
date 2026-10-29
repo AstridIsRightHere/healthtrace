@@ -10,6 +10,7 @@ import org.springframework.transaction.annotation.Transactional;
 /**
  * 彻底删除本人名下的报告（FR-016），任意处理状态均可删除，含已确认与识别中。
  * <ul>
+ *   <li>正常与列表移除（回收站）中的报告均可删除；已删除、不存在或越权统一 404 HT-3001。</li>
  *   <li>归属校验后交给 {@link ReportPurger}：同一事务内删除修改记录、就诊关联、结果、OCR 任务、图片与报告，
  *       并写入 REPORT_PURGE 账本与存储清理 outbox。</li>
  *   <li>识别中的报告：任务行随报告删除，执行中的 OCR 提交结果时因行不存在而放弃写入。</li>
@@ -31,7 +32,8 @@ public class ReportDeletionService {
 
     @Transactional
     public void delete(long accountId, long reportId) {
-        access.requireOwnedReport(accountId, reportId);
+        // 列表移除（回收站）中的报告同样可彻底删除，避免隐藏后无法清除的"数据僵尸"
+        access.requireOwnedReportAnyVisibility(accountId, reportId);
         if (purger.purge(reportId) == 0) {
             // 校验后被并发删除
             throw new ApiException(ErrorCode.RESOURCE_NOT_FOUND);

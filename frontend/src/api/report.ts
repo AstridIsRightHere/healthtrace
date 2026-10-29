@@ -50,6 +50,8 @@ export interface ReportListItem {
   coverHasPreview: boolean
   /** 最近一次 OCR 任务的归一化错误码（无任务或成功时为 null） */
   lastOcrErrorCode: string | null
+  /** 列表移除时间：仅回收站（status=REMOVED）返回，其他列表为 null（FR-016） */
+  removedAt?: string | null
 }
 
 /** 已确认报告按种类聚合的一组；reports 按检查日期、id 倒序 */
@@ -122,6 +124,18 @@ export const reportApi = {
    * 原件、预览图、OCR 任务、检验结果、修改记录和就诊关联一并清除，不可恢复。
    */
   remove: (reportId: number) => api.delete<void>(`/reports/${reportId}`).then(() => undefined),
+
+  /** POST /api/v1/reports/{reportId}/list-removals：列表移除（移入回收站），可恢复 */
+  listRemove: (reportId: number) => api.post<void>(`/reports/${reportId}/list-removals`).then(() => undefined),
+
+  /** DELETE /api/v1/reports/{reportId}/list-removals：从回收站恢复 */
+  restore: (reportId: number) => api.delete<void>(`/reports/${reportId}/list-removals`).then(() => undefined),
+
+  /** GET /api/v1/patient-profiles/{profileId}/reports?status=REMOVED：回收站，按移除时间倒序 */
+  listRemoved: (profileId: number) =>
+    api
+      .get<ListPage<ReportListItem>>(`/patient-profiles/${profileId}/reports`, { params: { status: 'REMOVED' } })
+      .then((res) => res.data),
 
   /** 图片访问地址：同源会话 Cookie 鉴权，服务端返回 no-store 或 302 到短时签名 URL */
   photoUrl: (photoId: number, variant: PhotoVariant = 'preview') =>

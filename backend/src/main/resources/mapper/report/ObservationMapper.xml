@@ -5,19 +5,38 @@
     <insert id="insert" useGeneratedKeys="true" keyProperty="id" keyColumn="id">
         INSERT INTO observation (report_id, original_name, original_value, result_kind, numeric_value, unit_text,
                                  reference_text, reference_low, reference_high, abnormal_flag, examination_date,
-                                 confidence, confirmed_at, source_photo_id, status, row_order, created_at, updated_at)
+                                 confidence, confirmed_at, source_photo_id, status, row_order, created_at, updated_at,
+                                 supersedes_id, created_revision_id)
         VALUES (#{reportId}, #{originalName}, #{originalValue}, #{resultKind}, #{numericValue}, #{unitText},
                 #{referenceText}, #{referenceLow}, #{referenceHigh}, #{abnormalFlag}, #{examinationDate},
-                #{confidence}, #{confirmedAt}, #{sourcePhotoId}, #{status}, #{rowOrder}, #{createdAt}, #{updatedAt})
+                #{confidence}, #{confirmedAt}, #{sourcePhotoId}, #{status}, #{rowOrder}, #{createdAt}, #{updatedAt},
+                #{supersedesId}, #{createdRevisionId})
     </insert>
 
+    <sql id="columns">
+        id, report_id, original_name, original_value, result_kind, numeric_value, unit_text, reference_text,
+        reference_low, reference_high, abnormal_flag, examination_date, confidence, confirmed_at,
+        source_photo_id, status, row_order, created_at, updated_at,
+        supersedes_id, created_revision_id, retired_revision_id, retired_at
+    </sql>
+
     <select id="findByReport" resultType="com.healthtrace.report.domain.Observation">
-        SELECT id, report_id, original_name, original_value, result_kind, numeric_value, unit_text, reference_text,
-               reference_low, reference_high, abnormal_flag, examination_date, confidence, confirmed_at,
-               source_photo_id, status, row_order, created_at, updated_at
+        SELECT <include refid="columns"/>
         FROM observation
         WHERE report_id = #{reportId} AND status = #{status}
         ORDER BY row_order, id
+    </select>
+
+    <!-- 报告全部行（含已替代 / 已撤回），用于追溯某一结果的版本链 -->
+    <select id="findAllByReport" resultType="com.healthtrace.report.domain.Observation">
+        SELECT <include refid="columns"/>
+        FROM observation
+        WHERE report_id = #{reportId}
+        ORDER BY id
+    </select>
+
+    <select id="maxRowOrder" resultType="int">
+        SELECT IFNULL(MAX(row_order), -1) FROM observation WHERE report_id = #{reportId}
     </select>
 
     <update id="updateDraft">
@@ -58,22 +77,42 @@
             OR REPLACE(REPLACE(TRIM(IFNULL(o.unit_text, '')), ' ', ''), '％', '%') COLLATE utf8mb4_bin = a.required_unit)
     </update>
 
+    <!--
+        彻底删除前先解除行间版本链（自引用外键在单条 DELETE 中逐行检查，顺序不可控）。
+        对 report_revision 的引用保留：结果行先于修改记录删除即可满足外键，且不破坏 ck_observation_retired。
+    -->
+    <update id="unlinkSupersedes">
+        UPDATE observation SET supersedes_id = NULL
+        WHERE report_id = #{reportId} AND supersedes_id IS NOT NULL
+    </update>
+
     <delete id="deleteByReport">
         DELETE FROM observation WHERE report_id = #{reportId}
     </delete>
-    <!-- FR-014 修改正式结果：名称/单位可能变化，先清空标准指标映射，随后由 assignMetricDefinitions 重新映射 -->
-    <update id="updateFormal">
+
+    <!-- FR-014 修改 / 删除正式结果：旧行只改状态与失效信息，原值保持不变 -->
+    <update id="retireFormal">
         UPDATE observation
-        SET original_name = #{originalName}, original_value = #{originalValue}, result_kind = #{resultKind},
-            numeric_value = #{numericValue}, unit_text = #{unitText}, reference_text = #{referenceText},
-            reference_low = #{referenceLow}, reference_high = #{referenceHigh}, abnormal_flag = #{abnormalFlag},
-            examination_date = #{examinationDate}, source_photo_id = #{sourcePhotoId}, row_order = #{rowOrder},
-            confidence = #{confidence}, metric_definition_id = NULL, updated_at = #{updatedAt}
+        SET status = #{status}, retired_revision_id = #{revisionId}, retired_at = #{retiredAt},
+            updated_at = #{retiredAt}
         WHERE id = #{id} AND report_id = #{reportId} AND status = 'FORMAL'
     </update>
 
-    <delete id="deleteFormalById">
-        DELETE FROM observation WHERE id = #{id} AND report_id = #{reportId} AND status = 'FORMAL'
-    </delete>
+    <!-- FR-014 修改产生的新行在修改记录写入后回填 created_revision_id（同一事务内） -->
+    <update id="assignCreatedRevision">
+        UPDATE observation
+        SET created_revision_id = #{revisionId}
+        WHERE report_id = #{reportId}
+          AND created_revision_id IS NULL
+          AND id IN
+        <foreach collection="ids" item="id" open="(" separator="," close=")">#{id}</foreach>
+    </update>
+
+    <!-- FR-014 修改检查日期：报告级字段，同步到当前正式结果；旧日期记录在 report_revision -->
+    <update id="updateFormalExaminationDate">
+        UPDATE observation
+        SET examination_date = #{examinationDate}, updated_at = #{updatedAt}
+        WHERE report_id = #{reportId} AND status = 'FORMAL'
+    </update>
 
 </mapper>

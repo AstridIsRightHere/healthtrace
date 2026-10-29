@@ -22,7 +22,7 @@ import java.util.List;
  * <ul>
  *   <li>不做权限判断：调用方先完成归属校验；必须在调用方事务内执行。</li>
  *   <li>任意处理状态都可删除，含已确认与识别中：OCR 任务行一并删除，执行中的任务提交结果时会因行不存在而放弃。</li>
- *   <li>删除顺序满足外键：修改记录 → 就诊关联 → 结果（引用图片）→ OCR 任务 → 图片 → 报告。</li>
+ *   <li>删除顺序满足外键：就诊关联 → 结果（先解除行间版本链；结果引用图片与修改记录）→ 修改记录 → OCR 任务 → 图片 → 报告。</li>
  *   <li>图片原图与预览的对象键写入存储清理 outbox，提交后删除；每份报告写一条 REPORT_PURGE 账本。</li>
  * </ul>
  */
@@ -57,9 +57,10 @@ public class ReportPurger {
             return 0;
         }
         List<Photo> photos = photoMapper.findAllKeysByReport(reportId);
-        int removed = revisionMapper.deleteByReport(reportId);
-        removed += visitMapper.unlinkReport(reportId);
+        int removed = visitMapper.unlinkReport(reportId);
+        observationMapper.unlinkSupersedes(reportId);
         removed += observationMapper.deleteByReport(reportId);
+        removed += revisionMapper.deleteByReport(reportId);
         removed += ocrJobMapper.deleteByReport(reportId);
         removed += photoMapper.deleteByReport(reportId);
         removed += reportMapper.deleteById(reportId);

@@ -17,6 +17,12 @@ public interface ObservationMapper {
 
     List<Observation> findByReport(@Param("reportId") long reportId, @Param("status") ObservationStatus status);
 
+    /** 报告全部结果行（含已替代 / 已撤回），按 id 升序；用于追溯版本链。 */
+    List<Observation> findAllByReport(@Param("reportId") long reportId);
+
+    /** 报告内最大行序（含失效行）；无行时返回 -1。 */
+    int maxRowOrder(@Param("reportId") long reportId);
+
     /** 更新草稿行的可编辑字段（只作用于 DRAFT）。 */
     int updateDraft(Observation observation);
 
@@ -35,12 +41,26 @@ public interface ObservationMapper {
      */
     int assignMetricDefinitions(@Param("reportId") long reportId);
 
-    /** 彻底删除未确认报告时清理其全部观测值（此时只可能是草稿）。 */
+    /** 彻底删除报告前解除结果行之间的版本链（supersedes_id），避免自引用外键阻止整表删除。 */
+    int unlinkSupersedes(@Param("reportId") long reportId);
+
+    /** 彻底删除报告时清理其全部结果行（任意状态）；须在删除 report_revision 之前执行。 */
     int deleteByReport(@Param("reportId") long reportId);
 
-    /** FR-014：更新正式结果的可编辑字段并清空标准指标映射（只作用于 FORMAL）。 */
-    int updateFormal(Observation observation);
+    /**
+     * FR-014：使一条正式结果失效（SUPERSEDED / RETRACTED），只改状态与失效信息，原值保持不变。
+     * 只作用于 FORMAL；返回 0 表示该行已不是正式结果（并发修改）。
+     */
+    int retireFormal(@Param("reportId") long reportId, @Param("id") long id,
+                     @Param("status") ObservationStatus status, @Param("revisionId") long revisionId,
+                     @Param("retiredAt") LocalDateTime retiredAt);
 
-    /** FR-014：修改时移除某一正式结果；旧值保存在 report_revision。 */
-    int deleteFormalById(@Param("reportId") long reportId, @Param("id") long id);
+    /** FR-014：为本次修改新插入的结果行回填 created_revision_id。 */
+    int assignCreatedRevision(@Param("reportId") long reportId, @Param("ids") List<Long> ids,
+                              @Param("revisionId") long revisionId);
+
+    /** FR-014：检查日期修改后同步到该报告当前的全部正式结果。 */
+    int updateFormalExaminationDate(@Param("reportId") long reportId,
+                                    @Param("examinationDate") LocalDate examinationDate,
+                                    @Param("updatedAt") LocalDateTime updatedAt);
 }

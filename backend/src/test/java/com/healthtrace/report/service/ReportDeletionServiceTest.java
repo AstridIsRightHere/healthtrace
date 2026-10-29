@@ -37,7 +37,7 @@ class ReportDeletionServiceTest {
 
     @Test
     void othersReportIsNotFoundAndNothingDeleted() {
-        willThrow(new ApiException(ErrorCode.RESOURCE_NOT_FOUND)).given(access).requireOwnedReport(7L, 99L);
+        willThrow(new ApiException(ErrorCode.RESOURCE_NOT_FOUND)).given(access).requireOwnedReportAnyVisibility(7L, 99L);
         assertThatThrownBy(() -> service.delete(7L, 99L))
                 .isInstanceOf(ApiException.class)
                 .extracting(e -> ((ApiException) e).getErrorCode()).isEqualTo(ErrorCode.RESOURCE_NOT_FOUND);
@@ -47,20 +47,20 @@ class ReportDeletionServiceTest {
 
     @Test
     void ownedReportIsPurgedThenAudited() {
-        given(access.requireOwnedReport(7L, 21L)).willReturn(new Report());
+        given(access.requireOwnedReportAnyVisibility(7L, 21L)).willReturn(new Report());
         given(purger.purge(21L)).willReturn(5);
 
         service.delete(7L, 21L);
 
         var order = inOrder(access, purger, auditService);
-        order.verify(access).requireOwnedReport(7L, 21L);
+        order.verify(access).requireOwnedReportAnyVisibility(7L, 21L);
         order.verify(purger).purge(21L);
         order.verify(auditService).success(7L, AuditAction.REPORT_DELETE, "report:21");
     }
 
     @Test
     void concurrentlyDeletedReportIsNotFound() {
-        given(access.requireOwnedReport(7L, 21L)).willReturn(new Report());
+        given(access.requireOwnedReportAnyVisibility(7L, 21L)).willReturn(new Report());
         given(purger.purge(21L)).willReturn(0);
 
         assertThatThrownBy(() -> service.delete(7L, 21L))

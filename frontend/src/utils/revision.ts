@@ -1,21 +1,15 @@
 // 正式报告修改留痕（FR-014）的纯逻辑：构建提交内容、判断是否有改动、格式化修改记录
 import type { ObservationInput, ObservationView } from '../api/ocr'
-import type { ObservationSnapshot, RevisionChange, RevisionView } from '../api/revision'
+import type {
+  CreateRevisionCommand,
+  ObservationSnapshot,
+  RevisionChange,
+  RevisionOperation,
+  RevisionView,
+} from '../api/revision'
 import type { EditableRow } from '../components/review/types'
 
 export const REASON_MAX_LENGTH = 240
-
-/** 表格行 → 提交内容：去掉首尾空白，空单位/参考范围提交为 null */
-export function toObservationInputs(rows: EditableRow[]): ObservationInput[] {
-  return rows.map((row) => ({
-    id: row.id ?? undefined,
-    originalName: row.originalName.trim(),
-    originalValue: row.originalValue.trim(),
-    unitText: row.unitText.trim() || null,
-    referenceText: row.referenceText.trim() || null,
-    sourcePhotoId: row.sourcePhotoId,
-  }))
-}
 
 function norm(text: string | null | undefined): string {
   return (text ?? '').trim()
@@ -29,28 +23,66 @@ export function hasNoChange(
   date: string,
 ): boolean {
   if (norm(savedDate) !== norm(date)) return false
-  if (saved.length !== rows.length) return false
-  const byId = new Map(saved.map((o) => [o.id, o]))
-  return rows.every((row) => {
-    if (row.id === null) return false
-    const old = byId.get(row.id)
-    if (!old) return false
-    return (
-      norm(old.originalName) === norm(row.originalName) &&
-      norm(old.originalValue) === norm(row.originalValue) &&
-      norm(old.unitText) === norm(row.unitText) &&
-      norm(old.referenceText) === norm(row.referenceText)
-    )
-  })
+  return buildOperations(saved, rows).length === 0
 }
 
-/** 构建 PATCH 请求体；原因为空时提交 null */
-export function buildRevisePayload(version: number, examinationDate: string, reason: string, rows: EditableRow[]) {
+/** 表格行 → 指标字段（不带 id，id 由操作的 observationId 表达） */
+function toInput(row: EditableRow): ObservationInput {
+  return {
+    originalName: row.originalName.trim(),
+    originalValue: row.originalValue.trim(),
+    unitText: row.unitText.trim() || null,
+    referenceText: row.referenceText.trim() || null,
+    sourcePhotoId: row.sourcePhotoId,
+  }
+}
+
+function sameContent(old: ObservationView, row: EditableRow): boolean {
+  return (
+    norm(old.originalName) === norm(row.originalName) &&
+    norm(old.originalValue) === norm(row.originalValue) &&
+    norm(old.unitText) === norm(row.unitText) &&
+    norm(old.referenceText) === norm(row.referenceText)
+  )
+}
+
+/**
+ * 对比已保存的正式结果与编辑后的表格，得出指标级操作：
+ * 新行 → ADD；内容有变的已有行 → UPDATE；表格里消失的已有行 → DELETE；未变的行不提交。
+ */
+export function buildOperations(saved: ObservationView[], rows: EditableRow[]): RevisionOperation[] {
+  const byId = new Map(saved.map((o) => [o.id, o]))
+  const kept = new Set<number>()
+  const ops: RevisionOperation[] = []
+  for (const row of rows) {
+    const old = row.id === null ? undefined : byId.get(row.id)
+    if (!old) {
+      ops.push({ op: 'ADD', observation: toInput(row) })
+      continue
+    }
+    kept.add(old.id)
+    if (!sameContent(old, row)) ops.push({ op: 'UPDATE', observationId: old.id, observation: toInput(row) })
+  }
+  for (const old of saved) {
+    if (!kept.has(old.id)) ops.push({ op: 'DELETE', observationId: old.id })
+  }
+  return ops
+}
+
+/** 构建 POST /revisions 请求体；检查日期未变时提交 null（表示不修改），原因为空时提交 null */
+export function buildRevisionCommand(
+  version: number,
+  saved: ObservationView[],
+  savedDate: string | null,
+  rows: EditableRow[],
+  date: string,
+  reason: string,
+): CreateRevisionCommand {
   return {
     version,
-    examinationDate,
     reason: reason.trim() || null,
-    observations: toObservationInputs(rows),
+    examinationDate: norm(savedDate) === norm(date) ? null : norm(date) || null,
+    operations: buildOperations(saved, rows),
   }
 }
 

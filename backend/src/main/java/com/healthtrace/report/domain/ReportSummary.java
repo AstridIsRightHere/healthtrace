@@ -17,6 +17,8 @@ public class ReportSummary {
     private boolean coverHasPreview;
     /** 最近一次 OCR 任务的错误码（无任务或成功为 null），供待处理列表提示失败（FR-015）。 */
     private String lastOcrErrorCode;
+    /** 列表移除时间（仅回收站查询填充，其他列表为 null）。 */
+    private LocalDateTime removedAt;
 
     public Long getId() {
         return id;
@@ -96,5 +98,13 @@ public class ReportSummary {
 
     public void setLastOcrErrorCode(String lastOcrErrorCode) {
         this.lastOcrErrorCode = lastOcrErrorCode;
+    }
+
+    public LocalDateTime getRemovedAt() {
+        return removedAt;
+    }
+
+    public void setRemovedAt(LocalDateTime removedAt) {
+        this.removedAt = removedAt;
     }
 }

@@ -1,5 +1,6 @@
 package com.healthtrace.report.service;
 
+import com.healthtrace.report.domain.ObservationStatus;
 import com.healthtrace.report.service.ReviewViews.ObservationInput;
 
 import java.time.LocalDate;
@@ -12,11 +13,33 @@ public final class RevisionViews {
     private RevisionViews() {
     }
 
-    public record ReviseCommand(
+    /** 单项操作类型：新增 / 修改 / 删除一条正式结果。 */
+    public enum OperationType {
+        ADD,
+        UPDATE,
+        DELETE
+    }
+
+    /**
+     * 一项修改操作。
+     * <ul>
+     *   <li>ADD：只需 observation（其 id 字段忽略）。</li>
+     *   <li>UPDATE：observationId 为当前正式结果行 id，observation 为修改后的完整字段。</li>
+     *   <li>DELETE：只需 observationId。</li>
+     * </ul>
+     */
+    public record RevisionOperation(
+            OperationType op,
+            Long observationId,
+            ObservationInput observation) {
+    }
+
+    /** POST /api/v1/reports/{reportId}/revisions 请求体；examinationDate 为空表示不修改检查日期。 */
+    public record CreateRevisionCommand(
             Long version,
-            LocalDate examinationDate,
             String reason,
-            List<ObservationInput> observations) {
+            LocalDate examinationDate,
+            List<RevisionOperation> operations) {
     }
 
     public record ReviseResult(
@@ -24,7 +47,7 @@ public final class RevisionViews {
             long version,
             LocalDate examinationDate,
             long revisionId,
-            int changedCount) {
+            int changeCount) {
     }
 
     public enum ChangeType {
@@ -41,8 +64,14 @@ public final class RevisionViews {
             String referenceText) {
     }
 
+    /**
+     * 一项变更。observationId 为变更前的行（ADDED 为空），newObservationId 为变更后的新行（REMOVED 为空）。
+     * 早期（V10 之前）的修改记录没有行 id，两者均为空。
+     */
     public record RevisionChange(
             ChangeType type,
+            Long observationId,
+            Long newObservationId,
             ObservationSnapshot before,
             ObservationSnapshot after) {
     }
@@ -62,5 +91,22 @@ public final class RevisionViews {
             LocalDateTime createdAt,
             DateChange examinationDate,
             List<RevisionChange> changes) {
+    }
+
+    /** 某一结果版本链中的一个版本（GET .../observations/{id}/history，最新在前）。 */
+    public record ObservationVersionView(
+            long id,
+            Long supersedesId,
+            ObservationStatus status,
+            String originalName,
+            String originalValue,
+            String unitText,
+            String referenceText,
+            LocalDate examinationDate,
+            Long sourcePhotoId,
+            Long createdRevisionId,
+            Long retiredRevisionId,
+            LocalDateTime createdAt,
+            LocalDateTime retiredAt) {
     }
 }

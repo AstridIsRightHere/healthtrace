@@ -5,6 +5,7 @@ import com.healthtrace.account.mapper.AccountMapper;
 import com.healthtrace.common.web.ApiException;
 import com.healthtrace.common.web.ErrorCode;
 import com.healthtrace.common.web.FieldErrorItem;
+import com.healthtrace.common.web.ListPage;
 import com.healthtrace.profile.mapper.ProfileMapper;
 import com.healthtrace.report.domain.DetectedMediaType;
 import com.healthtrace.report.domain.DuplicateDecision;
@@ -206,20 +207,25 @@ public class ReportService {
         return PhotoUploadResult.uploaded(toView(photo));
     }
 
-    /** 报告列表。支持 DRAFT（待处理）与 CONFIRMED（已确认）筛选。 */
-    public List<ReportListItem> listReports(long accountId, long profileId, ReportListFilter filter) {
+    /**
+     * 报告列表。支持 DRAFT（待处理）与 CONFIRMED（已确认）筛选；limit 为空表示全部，
+     * total 为忽略 limit 时满足筛选条件的总数（SQL LIMIT + 独立 COUNT）。
+     */
+    public ListPage<ReportListItem> listReports(long accountId, long profileId, ReportListFilter filter,
+                                                Integer limit) {
         requireProfileAccess(accountId, profileId);
-        List<ReportSummary> rows = switch (filter) {
-            case DRAFT -> reportMapper.findPendingByProfile(profileId);
-            case CONFIRMED -> reportMapper.findConfirmedByProfile(profileId);
+        return switch (filter) {
+            case DRAFT -> ListPage.of(reportMapper.findPendingByProfile(profileId, limit), limit,
+                    () -> reportMapper.countPendingByProfile(profileId), ReportService::toListItem);
+            case CONFIRMED -> ListPage.of(reportMapper.findConfirmedByProfile(profileId, limit), limit,
+                    () -> reportMapper.countConfirmedByProfile(profileId), ReportService::toListItem);
             case null -> throw validation("status", "NotSupported", "当前仅支持 status=DRAFT 或 CONFIRMED");
         };
-        return rows.stream().map(ReportService::toListItem).toList();
     }
 
     /** 已确认报告按种类聚合（标题清洗后归组，无标题按类型），供报告对比先选类型再选报告。 */
     public List<ReportViews.ReportGroup> listConfirmedGroups(long accountId, long profileId) {
-        return ReportGrouping.group(listReports(accountId, profileId, ReportListFilter.CONFIRMED));
+        return ReportGrouping.group(listReports(accountId, profileId, ReportListFilter.CONFIRMED, null).items());
     }
 
     /**

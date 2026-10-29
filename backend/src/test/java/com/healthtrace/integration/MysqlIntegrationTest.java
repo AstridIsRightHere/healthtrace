@@ -7,6 +7,11 @@ import com.healthtrace.indicator.domain.MetricDefinition;
 import com.healthtrace.indicator.domain.TrendObservation;
 import com.healthtrace.indicator.mapper.FollowedMetricMapper;
 import com.healthtrace.indicator.mapper.TrendMapper;
+import com.healthtrace.indicator.service.TrendService;
+import com.healthtrace.indicator.service.TrendViews.MetricLatestSummaries;
+import com.healthtrace.indicator.service.TrendViews.MetricLatestSummary;
+import com.healthtrace.indicator.service.TrendViews.MetricSummary;
+import com.healthtrace.indicator.service.TrendViews.TrendView;
 import com.healthtrace.profile.domain.Relationship;
 import com.healthtrace.profile.service.ProfileService;
 import com.healthtrace.profile.service.ProfileView;
@@ -76,9 +81,11 @@ class MysqlIntegrationTest {
     private static final LocalDateTime NOW = LocalDateTime.of(2026, 3, 1, 8, 0);
     private static final LocalDate EXAM_DATE = LocalDate.of(2026, 2, 20);
 
-    // 生产邮件实现尚未接入，仅 dev 有日志实现；test profile 下以 mock 补齐，不影响数据库验证
+    // 非 dev 环境按配置选用 SMTP 或未配置实现；集成测试不发真实邮件，以 mock 替换，不影响数据库验证
     @MockitoBean
     private AccountMailSender accountMailSender;
+    @Autowired
+    private TrendService trendService;
 
     @Autowired
     private JdbcTemplate jdbc;
@@ -236,13 +243,19 @@ class MysqlIntegrationTest {
         assertThat(all).extracting(TrendObservation::getMetricCode).containsExactly("ALT", "ALT", null);
 
         long altId = trendMapper.findDefinitionByCode("ALT").getId();
-        assertThat(trendMapper.findFormalByMetric(profileId, altId, EXAM_DATE))
+        LocalDate longAgo = EXAM_DATE.minusYears(5);
+        assertThat(trendMapper.findFormalByMetric(profileId, altId, longAgo, EXAM_DATE))
                 .extracting(TrendObservation::getNumericValue)
                 .usingElementComparator(BigDecimal::compareTo)
                 .containsExactly(new BigDecimal("30"), new BigDecimal("40"));
         // to 为闭区间上界
-        assertThat(trendMapper.findFormalByMetric(profileId, altId, EXAM_DATE.minusDays(1)))
+        assertThat(trendMapper.findFormalByMetric(profileId, altId, longAgo, EXAM_DATE.minusDays(1)))
                 .extracting(TrendObservation::getReportId).containsExactly(earlier);
+        // from 为闭区间下界，由 SQL 过滤
+        assertThat(trendMapper.findFormalByMetric(profileId, altId, EXAM_DATE, EXAM_DATE))
+                .extracting(TrendObservation::getReportId).containsExactly(visible);
+        assertThat(trendMapper.findFormalByMetric(profileId, altId, EXAM_DATE.minusDays(1), EXAM_DATE))
+                .extracting(TrendObservation::getReportId).containsExactly(visible);
 
         assertThat(trendMapper.findFormalUnmapped(profileId, EXAM_DATE))
                 .extracting(TrendObservation::getOriginalName).containsExactly("某罕见项目");
@@ -275,6 +288,80 @@ class MysqlIntegrationTest {
                 .extracting(FollowedMetric::getMetricCode)
                 .containsExactlyElementsOf(FollowPolicy.DEFAULT_CODES)
                 .containsExactly("WBC", "HGB", "PLT", "ALT", "AST", "CREA");
+    }
+
+    @Test
+    void trendHistoryAndLatestSummaryQueries() {
+        long profileId = seedProfile();
+        long r1 = seedReport(profileId, "PENDING_CONFIRMATION", "NORMAL");
+        long r2 = seedReport(profileId, "PENDING_CONFIRMATION", "NORMAL");
+        long r3 = seedReport(profileId, "PENDING_CONFIRMATION", "NORMAL");
+        observationMapper.insert(draft(r1, "ALT", "30", new BigDecimal("30"), "U/L", 0));
+        observationMapper.insert(draft(r1, " 白细胞 ", "5.0", new BigDecimal("5.0"), "10^9/L", 1));
+        observationMapper.insert(draft(r2, "谷丙转氨酶", "40", new BigDecimal("40"), "U/L", 0));
+        observationMapper.insert(draft(r3, "gpt", "50", new BigDecimal("50"), "U/L", 0));
+        observationMapper.insert(draft(r3, " 白细胞 ", "6500", new BigDecimal("6500"), "/uL", 1));
+        confirm(r1, EXAM_DATE.minusDays(60));
+        confirm(r2, EXAM_DATE.minusDays(30));
+        confirm(r3, EXAM_DATE);
+        long altId = trendMapper.findDefinitionByCode("ALT").getId();
+
+        // 窗口前历史：各原始写法最早一条 + 最近精确日期的全部行
+        assertThat(trendMapper.findFormalHistoryByMetric(profileId, altId, EXAM_DATE))
+                .extracting(TrendObservation::getReportId).containsExactly(r1, r2);
+        assertThat(trendMapper.findFormalHistoryByMetric(profileId, altId, EXAM_DATE.minusDays(30)))
+                .extracting(TrendObservation::getReportId).containsExactly(r1);
+        assertThat(trendMapper.findFormalHistoryByMetric(profileId, altId, EXAM_DATE.minusDays(60))).isEmpty();
+
+        // 最新值摘要：每个指标每种原始写法只取最近 2 个日期
+        assertThat(trendMapper.findRecentExactByMetrics(profileId, List.of(altId), EXAM_DATE))
+                .extracting(TrendObservation::getReportId).containsExactly(r2, r3);
+        assertThat(trendMapper.findRecentExactByMetrics(profileId, List.of(altId), EXAM_DATE.minusDays(1)))
+                .extracting(TrendObservation::getReportId).containsExactly(r1, r2);
+    }
+
+    @Test
+    void trendServiceEndToEndMatchesFullComputation() {
+        long profileId = seedProfile();
+        long accountId = jdbc.queryForObject(
+                "SELECT account_id FROM profile_access WHERE profile_id = ? LIMIT 1", Long.class, profileId);
+        long r1 = seedReport(profileId, "PENDING_CONFIRMATION", "NORMAL");
+        long r2 = seedReport(profileId, "PENDING_CONFIRMATION", "NORMAL");
+        observationMapper.insert(draft(r1, "ALT", "40", new BigDecimal("40"), "U/L", 0));
+        observationMapper.insert(draft(r1, " 白细胞 ", "5.0", new BigDecimal("5.0"), "10^9/L", 1));
+        observationMapper.insert(draft(r2, "gpt", "50", new BigDecimal("50"), "U/L", 0));
+        observationMapper.insert(draft(r2, " 白细胞 ", "6500", new BigDecimal("6500"), "/uL", 1));
+        observationMapper.insert(draft(r2, "某罕见项目", "阴性", null, null, 2));
+        confirm(r1, EXAM_DATE.minusDays(30));
+        confirm(r2, EXAM_DATE);
+
+        // 窗口首点的增减来自窗口前历史（SQL 下界之外的行）
+        TrendView trend = trendService.getTrend(accountId, profileId, "ALT", "custom", EXAM_DATE, EXAM_DATE);
+        assertThat(trend.groups()).singleElement().satisfies(g -> {
+            assertThat(g.points()).singleElement().satisfies(p -> {
+                assertThat(p.change().absolute()).isEqualByComparingTo("10");
+                assertThat(p.change().percent()).isEqualByComparingTo("25.00");
+            });
+        });
+
+        MetricLatestSummaries summaries = trendService.getLatestSummaries(accountId, profileId, "ALT,WBC,HGB");
+        assertThat(summaries.items()).extracting(MetricLatestSummary::metricCode).containsExactly("ALT", "WBC", "HGB");
+        assertThat(summaries.items().get(0).latest().numericValue()).isEqualByComparingTo("50");
+        assertThat(summaries.items().get(0).change().absolute()).isEqualByComparingTo("10");
+        // WBC 最新点在 /uL 组，组间不计算增减
+        assertThat(summaries.items().get(1).latest().unitText()).isEqualTo("/uL");
+        assertThat(summaries.items().get(1).change()).isNull();
+        assertThat(summaries.items().get(2).latest()).isNull();
+
+        // /metrics 聚合结果与逐行（findFormalByProfile）统计一致
+        List<TrendObservation> rows = trendMapper.findFormalByProfile(profileId);
+        assertThat(rows).hasSize(5);
+        List<MetricSummary> metrics = trendService.listMetrics(accountId, profileId);
+        assertThat(metrics).extracting(MetricSummary::code).containsExactly("WBC", "ALT", "RAW:某罕见项目");
+        assertThat(metrics).extracting(MetricSummary::count).containsExactly(2, 2, 1);
+        assertThat(metrics).extracting(MetricSummary::groupCount).containsExactly(2, 1, 1);
+        assertThat(metrics).extracting(MetricSummary::latestDate).containsOnly(EXAM_DATE);
+        assertThat(metrics).extracting(MetricSummary::standard).containsExactly(true, true, false);
     }
 
     // ---- 种子数据 ----

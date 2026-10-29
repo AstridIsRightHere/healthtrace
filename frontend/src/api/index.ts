@@ -15,6 +15,12 @@ export interface ApiErrorBody {
   retryable?: boolean
 }
 
+/** 列表接口的分页外壳：items 受 limit 限制，total 为忽略 limit 的总数 */
+export interface ListPage<T> {
+  items: T[]
+  total: number
+}
+
 declare module 'axios' {
   interface AxiosRequestConfig {
     /** 为 true 时 401 不触发全局跳转登录（例如启动时探测会话） */

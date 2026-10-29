@@ -32,7 +32,7 @@
         o.specimen_text, o.method_text, o.original_name
     </sql>
 
-    <!-- 全部正式结果：已映射的带标准指标 code；未映射的 metric_code 为空，由服务层按报告原名归组 -->
+    <!-- 全部正式结果（逐行）：生产路径已改用 aggregateFormalByProfile，保留用于集成测试比对聚合结果 -->
     <select id="findFormalByProfile" resultType="com.healthtrace.indicator.domain.TrendObservation">
         SELECT <include refid="observationColumns"/>, d.code AS metric_code
         FROM observation o
@@ -46,12 +46,107 @@
         ORDER BY (d.sort_order IS NULL), d.sort_order, o.original_name, o.examination_date, o.id
     </select>
 
+    <!-- 窗口函数子查询 t 的输出列（与 observationColumns 同名） -->
+    <sql id="windowObservationColumns">
+        t.observation_id, t.report_id, t.examination_date, t.original_value, t.result_kind,
+        t.numeric_value, t.unit_text, t.reference_text, t.reference_low, t.reference_high, t.abnormal_flag,
+        t.specimen_text, t.method_text, t.original_name
+    </sql>
+
+    <!--
+        单位/标本/方法的“原始写法”分区键。utf8mb4_0900_bin 为逐码点、NO PAD 比较，
+        比服务层 groupKey（去空白、单位写法归一）更细：原始写法相同必然归一后相同，
+        因此在 SQL 中按原始写法分区取前 N 个日期，再由服务层合并，结果与逐行计算一致。
+    -->
+    <sql id="rawGroupPartition">
+        o.unit_text COLLATE utf8mb4_0900_bin, o.specimen_text COLLATE utf8mb4_0900_bin,
+        o.method_text COLLATE utf8mb4_0900_bin
+    </sql>
+
+    <!--
+        “有数据的指标”列表聚合：按 标准 code（未映射时 + 报告原名）+ 原始单位/标本/方法写法分组计数。
+        pos 为原列表排序（未映射排后、sort_order、原名、日期、id）中的序号，服务层用 MIN/MAX 还原列表顺序与“最近一次”写法。
+    -->
+    <select id="aggregateFormalByProfile" resultType="com.healthtrace.indicator.domain.MetricAggregate">
+        SELECT t.metric_code, t.original_name, t.unit_text, t.specimen_text, t.method_text,
+               COUNT(*) AS observation_count, MAX(t.examination_date) AS latest_date,
+               MIN(t.pos) AS first_pos, MAX(t.pos) AS last_pos
+        FROM (SELECT d.code AS metric_code,
+                     CASE WHEN d.code IS NULL THEN o.original_name COLLATE utf8mb4_0900_bin END AS original_name,
+                     o.unit_text COLLATE utf8mb4_0900_bin AS unit_text,
+                     o.specimen_text COLLATE utf8mb4_0900_bin AS specimen_text,
+                     o.method_text COLLATE utf8mb4_0900_bin AS method_text,
+                     o.examination_date,
+                     ROW_NUMBER() OVER (ORDER BY (d.sort_order IS NULL), d.sort_order, o.original_name,
+                         o.examination_date, o.id) AS pos
+              FROM observation o
+                       JOIN report r ON r.id = o.report_id
+                       LEFT JOIN metric_definition d ON d.id = o.metric_definition_id
+              WHERE r.profile_id = #{profileId}
+                AND r.visibility_status = 'NORMAL'
+                AND r.processing_status = 'CONFIRMED'
+                AND o.status = 'FORMAL'
+                AND o.examination_date IS NOT NULL) t
+        GROUP BY t.metric_code, t.original_name, t.unit_text, t.specimen_text, t.method_text
+        ORDER BY first_pos
+    </select>
+
+    <!-- 指定指标在 [from, to] 内的正式结果 -->
     <select id="findFormalByMetric" resultType="com.healthtrace.indicator.domain.TrendObservation">
         SELECT <include refid="observationColumns"/>
         <include refid="formalFrom"/>
           AND o.metric_definition_id = #{metricDefinitionId}
+          AND o.examination_date &gt;= #{from}
           AND o.examination_date &lt;= #{to}
         ORDER BY o.examination_date, o.id
+    </select>
+
+    <!--
+        窗口（before）之前、计算窗口内结果所需的最少历史行，按原始写法分区：
+        1) first_rn = 1：分区内最早一条（任意结果类型），用于可比组排序与组的展示写法（取组内最早一条）；
+        2) 精确数值行中最近一个日期（date_rank = 1）的全部行，用于窗口内首点的增减与“同日多条”判断。
+    -->
+    <select id="findFormalHistoryByMetric" resultType="com.healthtrace.indicator.domain.TrendObservation">
+        SELECT <include refid="windowObservationColumns"/>
+        FROM (SELECT <include refid="observationColumns"/>,
+                     (o.result_kind = 'EXACT' AND o.numeric_value IS NOT NULL) AS is_exact,
+                     ROW_NUMBER() OVER (PARTITION BY <include refid="rawGroupPartition"/>
+                         ORDER BY o.examination_date, o.id) AS first_rn,
+                     DENSE_RANK() OVER (PARTITION BY <include refid="rawGroupPartition"/>,
+                         (o.result_kind = 'EXACT' AND o.numeric_value IS NOT NULL)
+                         ORDER BY o.examination_date DESC) AS date_rank
+              <include refid="formalFrom"/>
+                AND o.metric_definition_id = #{metricDefinitionId}
+                AND o.examination_date &lt; #{before}) t
+        WHERE t.first_rn = 1 OR (t.is_exact = 1 AND t.date_rank = 1)
+        ORDER BY t.examination_date, t.observation_id
+    </select>
+
+    <!--
+        多个指标截至 to（含）的精确数值结果：每个指标、每种原始写法只取最近 2 个日期的全部行。
+        合并后的可比组最近 2 个日期必在其某个原始写法分区的最近 2 个日期内，故最新点及其增减与趋势接口一致。
+    -->
+    <select id="findRecentExactByMetrics" resultType="com.healthtrace.indicator.domain.TrendObservation">
+        SELECT <include refid="windowObservationColumns"/>, t.metric_code
+        FROM (SELECT <include refid="observationColumns"/>, d.code AS metric_code,
+                     DENSE_RANK() OVER (PARTITION BY o.metric_definition_id, <include refid="rawGroupPartition"/>
+                         ORDER BY o.examination_date DESC) AS date_rank
+              FROM observation o
+                       JOIN report r ON r.id = o.report_id
+                       JOIN metric_definition d ON d.id = o.metric_definition_id
+              WHERE r.profile_id = #{profileId}
+                AND r.visibility_status = 'NORMAL'
+                AND r.processing_status = 'CONFIRMED'
+                AND o.status = 'FORMAL'
+                AND o.examination_date IS NOT NULL
+                AND o.examination_date &lt;= #{to}
+                AND o.result_kind = 'EXACT'
+                AND o.numeric_value IS NOT NULL
+                AND o.metric_definition_id IN
+                <foreach collection="metricDefinitionIds" item="id" open="(" separator="," close=")">#{id}</foreach>
+             ) t
+        WHERE t.date_rank &lt;= 2
+        ORDER BY t.metric_code, t.examination_date, t.observation_id
     </select>
 
     <!-- 单份报告的正式结果（报告对比用）；报告的授权、确认状态由调用方先校验 -->

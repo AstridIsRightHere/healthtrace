@@ -22,6 +22,7 @@
         <java.version>25</java.version>
         <!-- ADR-012 / DEC-022：MyBatis，不混用 JPA 或 MyBatis-Plus；Starter 4.1.x 对应 Boot 4.1 -->
         <mybatis-spring-boot.version>4.1.0</mybatis-spring-boot.version>
+        <springdoc.version>3.2.0</springdoc.version>
     </properties>
 
     <dependencies>
@@ -56,6 +57,17 @@
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-security</artifactId>
+        </dependency>
+        <!-- 账号邮件（验证码 / 重置密码）：配置 spring.mail.host 时启用 SMTP 实现 -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-mail</artifactId>
+        </dependency>
+        <!-- OpenAPI 文档：springdoc 3.x 对应 Boot 4；仅 dev profile 开启，其余环境在 application.yml 中关闭 -->
+        <dependency>
+            <groupId>org.springdoc</groupId>
+            <artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
+            <version>${springdoc.version}</version>
         </dependency>
 
         <dependency>

@@ -7,6 +7,7 @@ import com.healthtrace.common.security.SecurityConfig;
 import com.healthtrace.common.web.ApiException;
 import com.healthtrace.common.web.ErrorCode;
 import com.healthtrace.common.web.ErrorResponseWriter;
+import com.healthtrace.common.web.ListPage;
 import com.healthtrace.visit.service.VisitService;
 import com.healthtrace.visit.service.VisitViews.LinkedReportView;
 import com.healthtrace.visit.service.VisitViews.VisitInput;
@@ -87,11 +88,32 @@ class VisitWebTest {
 
     @Test
     void listReturnsVisits() throws Exception {
-        given(visitService.list(7, 11, 3)).willReturn(List.of(view(List.of())));
+        given(visitService.list(7, 11, 3)).willReturn(new ListPage<>(List.of(view(List.of())), 9));
         mvc.perform(get("/api/v1/patient-profiles/11/visits").param("limit", "3").with(account(7)))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$[0].hospitalText").value("市第一医院"))
-                .andExpect(jsonPath("$[0].visitDate").value("2026-10-27"));
+                .andExpect(jsonPath("$.items[0].hospitalText").value("市第一医院"))
+                .andExpect(jsonPath("$.items[0].visitDate").value("2026-10-27"))
+                .andExpect(jsonPath("$.total").value(9));
+    }
+
+    @Test
+    void listWithoutLimitPassesNull() throws Exception {
+        given(visitService.list(7, 11, null)).willReturn(new ListPage<>(List.of(), 0));
+        mvc.perform(get("/api/v1/patient-profiles/11/visits").with(account(7)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items").isEmpty())
+                .andExpect(jsonPath("$.total").value(0));
+    }
+
+    @Test
+    void listRejectsInvalidLimit() throws Exception {
+        for (String bad : List.of("0", "101", "-1", "abc")) {
+            mvc.perform(get("/api/v1/patient-profiles/11/visits").param("limit", bad).with(account(7)))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.code").value("HT-1001"))
+                    .andExpect(jsonPath("$.fieldErrors[0].field").value("limit"));
+        }
+        verify(visitService, never()).list(anyLong(), anyLong(), any());
     }
 
     @Test

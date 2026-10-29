@@ -14,7 +14,8 @@ const error = ref('')
 
 onMounted(async () => {
   try {
-    visits.value = await visitApi.list(props.profileId, 3)
+    // 首页只取最近 3 条（FR-012），由后端 SQL LIMIT 限制
+    visits.value = (await visitApi.list(props.profileId, 3)).items
   } catch (e) {
     error.value = errorMessage(e, '就诊记录加载失败，请稍后刷新')
   } finally {

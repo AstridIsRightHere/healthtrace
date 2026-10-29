@@ -54,4 +54,22 @@ public final class TrendViews {
 
     public record TrendView(MetricInfo metric, DateRange range, List<TrendGroup> groups, boolean unitWarning) {
     }
+
+    /** 关注卡片用的最近一次精确数值结果；unitText 为该条结果自身的单位写法。 */
+    public record LatestObservation(long observationId, long reportId, LocalDate examinationDate,
+                                    String originalValue, BigDecimal numericValue, String unitText,
+                                    AbnormalFlag abnormalFlag) {
+    }
+
+    /**
+     * 单个指标的最新值摘要。latest 为空表示截至今天没有精确数值结果；
+     * change 与趋势接口中该点的 change 语义一致（同组最近此前日期的可比点），为空表示没有此前可比点。
+     */
+    public record MetricLatestSummary(String metricCode, String standardName, String standardUnit,
+                                      LatestObservation latest, Change change) {
+    }
+
+    /** items 顺序与请求 codes（去重后）一致。 */
+    public record MetricLatestSummaries(List<MetricLatestSummary> items) {
+    }
 }

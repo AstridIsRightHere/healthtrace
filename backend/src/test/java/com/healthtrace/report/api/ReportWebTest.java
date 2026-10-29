@@ -7,6 +7,7 @@ import com.healthtrace.common.security.SecurityConfig;
 import com.healthtrace.common.web.ApiException;
 import com.healthtrace.common.web.ErrorCode;
 import com.healthtrace.common.web.ErrorResponseWriter;
+import com.healthtrace.common.web.ListPage;
 import com.healthtrace.report.domain.DuplicateDecision;
 import com.healthtrace.report.domain.ProcessingStatus;
 import com.healthtrace.report.domain.ReportListFilter;
@@ -272,28 +273,51 @@ class ReportWebTest {
 
     @Test
     void listDraftDelegatesWithFilter() throws Exception {
-        given(reportService.listReports(7L, 11L, ReportListFilter.DRAFT)).willReturn(List.of());
+        given(reportService.listReports(7L, 11L, ReportListFilter.DRAFT, null))
+                .willReturn(new ListPage<>(List.of(), 0));
         mvc.perform(get("/api/v1/patient-profiles/11/reports").param("status", "DRAFT").with(account(7L)))
                 .andExpect(status().isOk())
-                .andExpect(content().json("[]"));
+                .andExpect(content().json("{\"items\":[],\"total\":0}"));
+    }
+
+    @Test
+    void listDraftPassesLimitAndReturnsTotal() throws Exception {
+        given(reportService.listReports(7L, 11L, ReportListFilter.DRAFT, 5))
+                .willReturn(new ListPage<>(List.of(), 12));
+        mvc.perform(get("/api/v1/patient-profiles/11/reports").param("status", "DRAFT").param("limit", "5")
+                        .with(account(7L)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.total").value(12));
+    }
+
+    @Test
+    void listRejectsInvalidLimit() throws Exception {
+        for (String bad : List.of("0", "101", "x")) {
+            mvc.perform(get("/api/v1/patient-profiles/11/reports").param("limit", bad).with(account(7L)))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.code").value("HT-1001"))
+                    .andExpect(jsonPath("$.fieldErrors[0].field").value("limit"));
+        }
+        verify(reportService, never()).listReports(anyLong(), anyLong(), any(), any());
     }
 
     @Test
     void listConfirmedDelegatesWithFilter() throws Exception {
-        given(reportService.listReports(7L, 11L, ReportListFilter.CONFIRMED)).willReturn(List.of(
+        given(reportService.listReports(7L, 11L, ReportListFilter.CONFIRMED, null)).willReturn(new ListPage<>(List.of(
                 new com.healthtrace.report.service.ReportViews.ReportListItem(31L, "甲功", ReportType.UNKNOWN,
                         LocalDate.of(2026, 10, 1), ProcessingStatus.CONFIRMED,
-                        LocalDateTime.of(2026, 10, 2, 9, 0), 1, 5L, true, null)));
+                        LocalDateTime.of(2026, 10, 2, 9, 0), 1, 5L, true, null)), 1));
         mvc.perform(get("/api/v1/patient-profiles/11/reports").param("status", "confirmed").with(account(7L)))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$[0].id").value(31))
-                .andExpect(jsonPath("$[0].examinationDate").value("2026-10-01"))
-                .andExpect(jsonPath("$[0].processingStatus").value("CONFIRMED"));
+                .andExpect(jsonPath("$.items[0].id").value(31))
+                .andExpect(jsonPath("$.items[0].examinationDate").value("2026-10-01"))
+                .andExpect(jsonPath("$.items[0].processingStatus").value("CONFIRMED"))
+                .andExpect(jsonPath("$.total").value(1));
     }
 
     @Test
     void listConfirmedOnOthersProfileIs404() throws Exception {
-        given(reportService.listReports(7L, 99L, ReportListFilter.CONFIRMED))
+        given(reportService.listReports(7L, 99L, ReportListFilter.CONFIRMED, null))
                 .willThrow(new ApiException(ErrorCode.RESOURCE_NOT_FOUND));
         mvc.perform(get("/api/v1/patient-profiles/99/reports").param("status", "CONFIRMED").with(account(7L)))
                 .andExpect(status().isNotFound())
@@ -305,7 +329,7 @@ class ReportWebTest {
         mvc.perform(get("/api/v1/patient-profiles/11/reports").param("status", "ALL").with(account(7L)))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("HT-1001"));
-        verify(reportService, never()).listReports(anyLong(), anyLong(), any());
+        verify(reportService, never()).listReports(anyLong(), anyLong(), any(), any());
     }
 
     @Test

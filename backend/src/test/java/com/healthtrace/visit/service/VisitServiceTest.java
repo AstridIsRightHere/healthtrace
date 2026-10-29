@@ -116,17 +116,32 @@ class VisitServiceTest {
     }
 
     @Test
-    void listAppliesLimit() {
-        given(visitMapper.findByProfile(PROFILE)).willReturn(List.of(
+    void listPassesLimitToSqlAndCountsWhenPageIsFull() {
+        given(visitMapper.findByProfile(PROFILE, 2)).willReturn(List.of(visit(3L, PROFILE), visit(2L, PROFILE)));
+        given(visitMapper.countByProfile(PROFILE)).willReturn(3L);
+
+        var page = service.list(ACCOUNT, PROFILE, 2);
+
+        assertThat(page.items()).extracting(VisitView::id).containsExactly(3L, 2L);
+        assertThat(page.total()).isEqualTo(3);
+    }
+
+    @Test
+    void listWithoutLimitReturnsAllAndSkipsCount() {
+        given(visitMapper.findByProfile(PROFILE, null)).willReturn(List.of(
                 visit(3L, PROFILE), visit(2L, PROFILE), visit(1L, PROFILE)));
-        assertThat(service.list(ACCOUNT, PROFILE, 2)).extracting(VisitView::id).containsExactly(3L, 2L);
-        assertThat(service.list(ACCOUNT, PROFILE, null)).hasSize(3);
+
+        var page = service.list(ACCOUNT, PROFILE, null);
+
+        assertThat(page.items()).hasSize(3);
+        assertThat(page.total()).isEqualTo(3);
+        verify(visitMapper, never()).countByProfile(anyLong());
     }
 
     @Test
     void listForeignProfileIsNotFound() {
         assertNotFound(() -> service.list(OTHER_ACCOUNT, PROFILE, null));
-        verify(visitMapper, never()).findByProfile(anyLong());
+        verify(visitMapper, never()).findByProfile(anyLong(), any());
     }
 
     @Test

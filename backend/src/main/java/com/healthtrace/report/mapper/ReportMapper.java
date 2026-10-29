@@ -19,11 +19,17 @@ public interface ReportMapper {
 
     Report findById(@Param("id") long id);
 
-    /** 待处理（DRAFT 别名）：visibility=NORMAL 且 processing_status≠CONFIRMED，按上传时间倒序。 */
-    List<ReportSummary> findPendingByProfile(@Param("profileId") long profileId);
+    /** 待处理（DRAFT 别名）：visibility=NORMAL 且 processing_status≠CONFIRMED，按上传时间倒序。limit 为空表示全部。 */
+    List<ReportSummary> findPendingByProfile(@Param("profileId") long profileId, @Param("limit") Integer limit);
 
-    /** 已确认：visibility=NORMAL 且 processing_status=CONFIRMED，按检查日期倒序、id 倒序。 */
-    List<ReportSummary> findConfirmedByProfile(@Param("profileId") long profileId);
+    /** 与 findPendingByProfile 相同筛选条件的总数（忽略 limit）。 */
+    long countPendingByProfile(@Param("profileId") long profileId);
+
+    /** 已确认：visibility=NORMAL 且 processing_status=CONFIRMED，按检查日期倒序、id 倒序。limit 为空表示全部。 */
+    List<ReportSummary> findConfirmedByProfile(@Param("profileId") long profileId, @Param("limit") Integer limit);
+
+    /** 与 findConfirmedByProfile 相同筛选条件的总数（忽略 limit）。 */
+    long countConfirmedByProfile(@Param("profileId") long profileId);
 
     /** 带行锁读取，用于确认等需要串行化的写操作。 */
     Report findByIdForUpdate(@Param("id") long id);

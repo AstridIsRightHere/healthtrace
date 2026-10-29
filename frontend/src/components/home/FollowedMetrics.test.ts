@@ -7,7 +7,7 @@ vi.mock('../../api/followedMetric', () => ({
   followedMetricApi: { list: vi.fn(), save: vi.fn(), definitions: vi.fn() },
 }))
 vi.mock('../../api/trend', () => ({
-  trendApi: { trend: vi.fn() },
+  trendApi: { summaries: vi.fn(), trend: vi.fn() },
 }))
 
 import { followedMetricApi } from '../../api/followedMetric'
@@ -28,10 +28,17 @@ function mountIt() {
 
 const networkError = Object.assign(new Error('Network Error'), { isAxiosError: true, code: 'ERR_NETWORK' })
 
+const SIX = ['WBC', 'HGB', 'PLT', 'ALT', 'AST', 'CREA'].map((metricCode, sortOrder) => ({
+  metricCode,
+  name: metricCode,
+  sortOrder,
+}))
+
 describe('FollowedMetrics', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
     vi.mocked(followedMetricApi.list).mockReset()
+    vi.mocked(trendApi.summaries).mockReset()
     vi.mocked(trendApi.trend).mockReset()
   })
 
@@ -47,12 +54,9 @@ describe('FollowedMetrics', () => {
     expect(wrapper.text()).not.toContain('暂无记录')
 
     vi.mocked(followedMetricApi.list).mockResolvedValueOnce([{ metricCode: 'WBC', name: '白细胞计数', sortOrder: 0 }])
-    vi.mocked(trendApi.trend).mockResolvedValueOnce({
-      metric: { code: 'WBC', standardName: '白细胞计数', standardUnit: '10^9/L', comparabilityNote: null },
-      range: { from: '2021-01-01', to: '2026-01-01' },
-      groups: [],
-      unitWarning: false,
-    } as never)
+    vi.mocked(trendApi.summaries).mockResolvedValueOnce({
+      items: [{ metricCode: 'WBC', standardName: '白细胞计数', standardUnit: '10^9/L', latest: null, change: null }],
+    })
     await wrapper.find('[data-testid="follow-retry"]').trigger('click')
     await flushPromises()
 
@@ -61,32 +65,71 @@ describe('FollowedMetrics', () => {
     expect(followedMetricApi.list).toHaveBeenCalledTimes(2)
   })
 
-  it('单项趋势请求失败只让该卡片显示加载失败，其他卡片正常；点击可重试', async () => {
-    vi.mocked(followedMetricApi.list).mockResolvedValueOnce([
-      { metricCode: 'WBC', name: '白细胞计数', sortOrder: 0 },
-      { metricCode: 'HGB', name: '血红蛋白', sortOrder: 1 },
-    ])
-    vi.mocked(trendApi.trend).mockImplementation(async (_id, params) => {
-      if (params.metricCode === 'HGB') throw networkError
-      return {
-        metric: { code: 'WBC', standardName: '白细胞计数', standardUnit: '10^9/L', comparabilityNote: null },
-        range: { from: '2021-01-01', to: '2026-01-01' },
-        groups: [],
-        unitWarning: false,
-      } as never
+  it('6 个关注指标只发 1 次批量 metric-summaries 请求，不再逐项请求趋势', async () => {
+    vi.mocked(followedMetricApi.list).mockResolvedValueOnce(SIX)
+    vi.mocked(trendApi.summaries).mockResolvedValueOnce({
+      items: [
+        {
+          metricCode: 'WBC',
+          standardName: '白细胞计数',
+          standardUnit: '10^9/L',
+          latest: {
+            observationId: 9,
+            reportId: 3,
+            examinationDate: '2026-05-01',
+            originalValue: '6.5',
+            numericValue: 6.5,
+            unitText: '10^9/L',
+            abnormalFlag: null,
+          },
+          change: { absolute: 0.5, percent: 8.3, note: null },
+        },
+        ...SIX.slice(1).map((m) => ({
+          metricCode: m.metricCode,
+          standardName: m.metricCode,
+          standardUnit: '',
+          latest: null,
+          change: null,
+        })),
+      ],
     })
     const wrapper = mountIt()
     await flushPromises()
 
-    const failed = wrapper.find('[data-testid="follow-card-error"]')
-    expect(failed.exists()).toBe(true)
-    expect(failed.attributes('data-code')).toBe('HGB')
-    expect(failed.text()).toContain('加载失败')
-    expect(failed.text()).not.toContain('暂无记录')
-    expect(wrapper.find('[data-testid="follow-card"][data-code="WBC"]').exists()).toBe(true)
+    expect(trendApi.summaries).toHaveBeenCalledTimes(1)
+    expect(trendApi.summaries).toHaveBeenCalledWith(7, ['WBC', 'HGB', 'PLT', 'ALT', 'AST', 'CREA'])
+    expect(trendApi.trend).not.toHaveBeenCalled()
+    expect(wrapper.findAll('[data-testid="follow-card"]')).toHaveLength(6)
+    const wbc = wrapper.find('[data-testid="follow-card"][data-code="WBC"]')
+    expect(wbc.text()).toContain('6.5')
+    expect(wbc.text()).toContain('↑')
+    expect(wrapper.find('[data-testid="follow-card"][data-code="HGB"]').text()).toContain('暂无记录')
+  })
 
-    await failed.trigger('click')
+  it('批量请求失败时卡片显示加载失败而非暂无记录，点击后重新发起一次批量请求', async () => {
+    vi.mocked(followedMetricApi.list).mockResolvedValueOnce(SIX.slice(0, 2))
+    vi.mocked(trendApi.summaries).mockRejectedValueOnce(networkError)
+    const wrapper = mountIt()
     await flushPromises()
-    expect(vi.mocked(trendApi.trend).mock.calls.filter(([, p]) => p.metricCode === 'HGB')).toHaveLength(2)
+
+    const failed = wrapper.findAll('[data-testid="follow-card-error"]')
+    expect(failed).toHaveLength(2)
+    expect(failed[0]!.text()).toContain('加载失败')
+    expect(wrapper.text()).not.toContain('暂无记录')
+
+    vi.mocked(trendApi.summaries).mockResolvedValueOnce({
+      items: SIX.slice(0, 2).map((m) => ({
+        metricCode: m.metricCode,
+        standardName: m.metricCode,
+        standardUnit: '',
+        latest: null,
+        change: null,
+      })),
+    })
+    await failed[1]!.trigger('click')
+    await flushPromises()
+    expect(trendApi.summaries).toHaveBeenCalledTimes(2)
+    expect(wrapper.findAll('[data-testid="follow-card"]')).toHaveLength(2)
+    expect(wrapper.find('[data-testid="follow-card-error"]').exists()).toBe(false)
   })
 })

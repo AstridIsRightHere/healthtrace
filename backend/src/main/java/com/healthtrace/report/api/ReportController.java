@@ -4,6 +4,7 @@ import com.healthtrace.account.domain.AccountPrincipal;
 import com.healthtrace.common.web.ApiException;
 import com.healthtrace.common.web.ErrorCode;
 import com.healthtrace.common.web.FieldErrorItem;
+import com.healthtrace.common.web.ListPage;
 import com.healthtrace.report.domain.DuplicateDecision;
 import com.healthtrace.report.domain.ReportListFilter;
 import com.healthtrace.report.service.ReportService;
@@ -66,11 +67,12 @@ public class ReportController {
     }
 
     @GetMapping("/api/v1/patient-profiles/{profileId}/reports")
-    public List<ReportListItem> listReports(@AuthenticationPrincipal AccountPrincipal principal,
-                                            @PathVariable long profileId,
-                                            @RequestParam(name = "status", defaultValue = "DRAFT") String status) {
+    public ListPage<ReportListItem> listReports(@AuthenticationPrincipal AccountPrincipal principal,
+                                                @PathVariable long profileId,
+                                                @RequestParam(name = "status", defaultValue = "DRAFT") String status,
+                                                @RequestParam(name = "limit", required = false) String limit) {
         ReportListFilter filter = parseEnum(ReportListFilter.class, status, "status", "当前仅支持 status=DRAFT 或 CONFIRMED");
-        return reportService.listReports(principal.accountId(), profileId, filter);
+        return reportService.listReports(principal.accountId(), profileId, filter, ListPage.parseLimit(limit));
     }
 
     /** 已确认报告按种类聚合（FR-010 报告对比入口）。他人档案 404 HT-3001。 */

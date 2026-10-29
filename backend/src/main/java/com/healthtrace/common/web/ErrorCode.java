@@ -50,6 +50,8 @@ public enum ErrorCode {
 
     TOO_MANY_REQUESTS(HttpStatus.TOO_MANY_REQUESTS, "HT-5001", "尝试次数过多，请稍后再试", true),
     OCR_UNAVAILABLE(HttpStatus.SERVICE_UNAVAILABLE, "HT-5002", "OCR 识别暂不可用，可稍后重试或手动录入", true),
+    /** 邮件服务未配置或投递失败：验证/重置邮件无法发出，相关事务整体回滚。 */
+    MAIL_UNAVAILABLE(HttpStatus.SERVICE_UNAVAILABLE, "HT-5003", "邮件服务暂不可用，请稍后重试", true),
 
     INTERNAL_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "HT-9001", "内部处理失败，请稍后重试", true);
 

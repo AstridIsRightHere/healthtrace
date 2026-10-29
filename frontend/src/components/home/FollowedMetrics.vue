@@ -5,7 +5,7 @@ import { onMounted, ref } from 'vue'
 import { RouterLink } from 'vue-router'
 import { trendApi } from '../../api/trend'
 import { useFollowStore } from '../../stores/follow'
-import { DIRECTION_ARROW, DIRECTION_TEXT, toFollowCard, type FollowCard } from '../../utils/followMetric'
+import { DIRECTION_ARROW, DIRECTION_TEXT, toFollowCardFromSummary, type FollowCard } from '../../utils/followMetric'
 import ManageFollowDialog from './ManageFollowDialog.vue'
 
 const props = defineProps<{ profileId: number }>()
@@ -24,23 +24,36 @@ const managing = ref(false)
 const saving = ref(false)
 const saveError = ref('')
 
-async function loadCard(index: number): Promise<void> {
-  const slot = slots.value[index]
-  if (!slot) return
-  const { code, name } = slot
-  slots.value[index] = { code, name, state: 'loading' }
+/** 递增序号：较早发出的批量请求晚返回时丢弃，避免覆盖新结果 */
+let requestSeq = 0
+
+async function loadSummaries(): Promise<void> {
+  const items = follow.items.map((item) => ({ code: item.metricCode, name: item.name }))
+  slots.value = items.map(({ code, name }) => ({ code, name, state: 'loading' }))
+  if (items.length === 0) return
+  const seq = ++requestSeq
   try {
-    const view = await trendApi.trend(props.profileId, { metricCode: code, range: '5y' })
-    slots.value[index] = { code, name, state: 'ready', card: toFollowCard(code, view) }
+    // 一次批量请求取全部关注指标的最新值（替代逐项 5 年趋势请求）
+    const view = await trendApi.summaries(
+      props.profileId,
+      items.map((i) => i.code),
+    )
+    if (seq !== requestSeq) return
+    const byCode = new Map(view.items.map((s) => [s.metricCode, s]))
+    slots.value = items.map(({ code, name }) => ({
+      code,
+      name,
+      state: 'ready',
+      card: toFollowCardFromSummary(code, name, byCode.get(code)),
+    }))
   } catch {
-    slots.value[index] = { code, name, state: 'error' }
+    if (seq !== requestSeq) return
+    slots.value = items.map(({ code, name }) => ({ code, name, state: 'error' }))
   }
 }
 
 function rebuildCards(): void {
-  slots.value = follow.items.map((item) => ({ code: item.metricCode, name: item.name, state: 'loading' }))
-  // 每项独立请求：单项失败只让该卡片显示“加载失败”，不影响其他卡片
-  slots.value.forEach((_, i) => void loadCard(i))
+  void loadSummaries()
 }
 
 async function loadList(force = false): Promise<void> {
@@ -105,7 +118,7 @@ function cardLabel(c: FollowCard): string {
         <button class="btn-link" type="button" @click="openManage">去添加</button>
       </p>
       <ul v-else class="follow-list">
-        <li v-for="(s, i) in slots" :key="s.code">
+        <li v-for="s in slots" :key="s.code">
           <RouterLink
             v-if="s.state === 'ready'"
             class="follow-card"
@@ -137,7 +150,7 @@ function cardLabel(c: FollowCard): string {
             data-testid="follow-card-error"
             :data-code="s.code"
             :aria-label="`${s.name}：加载失败，请点击重试`"
-            @click="loadCard(i)"
+            @click="loadSummaries()"
           >
             <span class="follow-name">{{ s.name }}</span>
             <span class="follow-value follow-error" role="alert">加载失败</span>

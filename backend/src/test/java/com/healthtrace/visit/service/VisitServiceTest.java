@@ -53,7 +53,8 @@ class VisitServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new VisitService(visitMapper, reportMapper, profileMapper, clock);
+        service = new VisitService(visitMapper, reportMapper, profileMapper,
+                mock(com.healthtrace.rights.audit.AuditService.class), clock);
         given(profileMapper.findActiveByAccountAndProfile(ACCOUNT, PROFILE)).willReturn(new ProfileRecord());
         given(visitMapper.findById(VISIT)).willReturn(visit(VISIT, PROFILE));
         given(reportMapper.findById(REPORT)).willReturn(report(REPORT, PROFILE, VisibilityStatus.NORMAL));

@@ -11,6 +11,9 @@ import com.healthtrace.profile.domain.ProfileRecord;
 import com.healthtrace.profile.domain.ProfileStatus;
 import com.healthtrace.profile.domain.Relationship;
 import com.healthtrace.profile.mapper.ProfileMapper;
+import com.healthtrace.rights.audit.AuditAction;
+import com.healthtrace.rights.audit.AuditService;
+import com.healthtrace.rights.consent.ConsentService;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -30,10 +33,15 @@ import java.util.List;
 public class ProfileService {
 
     private final ProfileMapper profileMapper;
+    private final ConsentService consentService;
+    private final AuditService auditService;
     private final Clock clock;
 
-    public ProfileService(ProfileMapper profileMapper, Clock clock) {
+    public ProfileService(ProfileMapper profileMapper, ConsentService consentService, AuditService auditService,
+                          Clock clock) {
         this.profileMapper = profileMapper;
+        this.consentService = consentService;
+        this.auditService = auditService;
         this.clock = clock;
     }
 
@@ -80,6 +88,9 @@ public class ProfileService {
             // 并发建档：唯一键兜底，事务回滚连带撤销刚插入的档案
             throw alreadyHasProfile();
         }
+        // 建档授权声明同时落一条 CONSENT_RECORD（健康资料保存），与档案同事务
+        consentService.grantStorage(accountId, profile.getId(), relationship, ProfilePolicy.DECLARATION_VERSION, now);
+        auditService.success(accountId, AuditAction.PROFILE_CREATE, AuditService.token("profile", profile.getId()));
 
         return new ProfileView(profile.getId(), normalizedNickname, relationship, ProfileStatus.ACTIVE, 0L,
                 now, ProfilePolicy.DECLARATION_VERSION);

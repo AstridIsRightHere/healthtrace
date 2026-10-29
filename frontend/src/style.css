@@ -1381,7 +1381,8 @@ legend {
 }
 
 /* 就诊时间线（FR-013） */
-.visit-page textarea {
+.visit-page textarea,
+.review-page textarea {
   width: 100%;
   padding: 11px 14px;
   font: inherit;
@@ -1392,7 +1393,8 @@ legend {
   resize: vertical;
 }
 
-.visit-page textarea:focus {
+.visit-page textarea:focus,
+.review-page textarea:focus {
   border-color: var(--accent);
   box-shadow: 0 0 0 3px var(--accent-soft);
   outline: none;
@@ -1726,6 +1728,67 @@ legend {
 .follow-date {
   font-size: 13px;
   color: var(--muted);
+  overflow-wrap: anywhere;
+}
+
+/* 正式报告修改留痕（FR-014） */
+.revise-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.revise-head .notice {
+  flex: 1 1 220px;
+  margin: 0;
+}
+
+.revision-section {
+  margin-top: 24px;
+}
+
+.revision-section h2 {
+  margin: 0 0 12px;
+  font-size: 1.1rem;
+}
+
+.revision-list {
+  display: grid;
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.revision-item {
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  overflow-wrap: anywhere;
+}
+
+.revision-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  margin: 0 0 4px;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.revision-reason {
+  margin: 0 0 6px;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.revision-changes {
+  display: grid;
+  gap: 2px;
+  margin: 0;
+  padding-left: 18px;
+  font-size: 14px;
   overflow-wrap: anywhere;
 }
 

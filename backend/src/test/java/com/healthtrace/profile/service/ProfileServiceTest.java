@@ -46,7 +46,8 @@ class ProfileServiceTest {
     @BeforeEach
     void setUp() {
         mapper = mock(ProfileMapper.class);
-        service = new ProfileService(mapper, Clock.fixed(NOW, ZoneOffset.UTC));
+        service = new ProfileService(mapper, mock(com.healthtrace.rights.consent.ConsentService.class),
+                mock(com.healthtrace.rights.audit.AuditService.class), Clock.fixed(NOW, ZoneOffset.UTC));
         willAnswer(inv -> {
             inv.<PatientProfile>getArgument(0).setId(100L);
             return 1;

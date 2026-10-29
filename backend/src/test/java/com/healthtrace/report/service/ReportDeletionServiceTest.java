@@ -47,7 +47,7 @@ class ReportDeletionServiceTest {
         observationMapper = mock(ObservationMapper.class);
         storageService = mock(StorageService.class);
         service = new ReportDeletionService(access, reportMapper, photoMapper, ocrJobMapper, observationMapper,
-                storageService);
+                storageService, mock(com.healthtrace.rights.audit.AuditService.class));
     }
 
     private Report report(ProcessingStatus status) {

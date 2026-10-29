@@ -3,6 +3,8 @@ package com.healthtrace.report.service;
 import com.healthtrace.common.web.ApiException;
 import com.healthtrace.common.web.ErrorCode;
 import com.healthtrace.common.web.FieldErrorItem;
+import com.healthtrace.profile.domain.ProfileRecord;
+import com.healthtrace.profile.mapper.ProfileMapper;
 import com.healthtrace.report.domain.Observation;
 import com.healthtrace.report.domain.ObservationStatus;
 import com.healthtrace.report.domain.OcrJob;
@@ -24,6 +26,9 @@ import com.healthtrace.report.service.ReviewViews.DraftView;
 import com.healthtrace.report.service.ReviewViews.ObservationInput;
 import com.healthtrace.report.service.ReviewViews.ObservationView;
 import com.healthtrace.report.service.ReviewViews.OcrJobView;
+import com.healthtrace.rights.audit.AuditAction;
+import com.healthtrace.rights.audit.AuditService;
+import com.healthtrace.rights.consent.ConsentService;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -72,11 +77,18 @@ public class ReviewService {
     private final OcrService ocrService;
     private final OcrTextCipher cipher;
     private final OcrJobProcessor processor;
+    private final ProfileMapper profileMapper;
+    private final ConsentService consentService;
+    private final AuditService auditService;
     private final Clock clock;
 
     public ReviewService(ReportAccess access, ReportMapper reportMapper, PhotoMapper photoMapper,
                          OcrJobMapper ocrJobMapper, ObservationMapper observationMapper, OcrService ocrService,
-                         OcrTextCipher cipher, OcrJobProcessor processor, Clock clock) {
+                         OcrTextCipher cipher, OcrJobProcessor processor, ProfileMapper profileMapper,
+                         ConsentService consentService, AuditService auditService, Clock clock) {
+        this.profileMapper = profileMapper;
+        this.consentService = consentService;
+        this.auditService = auditService;
         this.access = access;
         this.reportMapper = reportMapper;
         this.photoMapper = photoMapper;
@@ -117,9 +129,14 @@ public class ReviewService {
         }
 
         LocalDateTime now = now();
+        // 本次发送第三方的特定同意：持久化完整版本记录，任务引用其 id（与任务同事务提交/回滚）
+        ProfileRecord profile = profileMapper.findActiveByAccountAndProfile(accountId, report.getProfileId());
+        long consentId = consentService.grantOcr(accountId, report.getProfileId(),
+                profile == null ? null : profile.getRelationship(), now);
         OcrJob job = new OcrJob();
         job.setReportId(reportId);
         job.setProvider(ocrService.provider());
+        job.setConsentRecordId(consentId);
         job.setConsentDeclaredAt(now);
         job.setCreatedBy(accountId);
         job.setStatus(OcrJobStatus.PENDING);
@@ -139,6 +156,7 @@ public class ReviewService {
         reportMapper.transitionStatus(reportId, SUBMITTABLE, ProcessingStatus.RECOGNIZING, now);
 
         long jobId = job.getId();
+        auditService.success(accountId, AuditAction.REPORT_OCR_SUBMIT, AuditService.token("report", reportId));
         runAfterCommit(() -> processor.processAsync(jobId));
         return OcrJobView.of(job);
     }
@@ -265,13 +283,14 @@ public class ReviewService {
         if (reportMapper.confirm(reportId, command.version(), command.examinationDate(), accountId, now) != 1) {
             throw new ApiException(ErrorCode.VERSION_CONFLICT);
         }
+        auditService.success(accountId, AuditAction.REPORT_CONFIRM, AuditService.token("report", reportId));
         return new ConfirmResult(reportId, ProcessingStatus.CONFIRMED, command.version() + 1,
                 command.examinationDate(), inputs.size());
     }
 
     // ---------------------------------------------------------------- helpers
 
-    private void validate(ConfirmCommand command) {
+    void validate(ConfirmCommand command) {
         List<FieldErrorItem> errors = new ArrayList<>();
         if (command == null) {
             throw new ApiException(ErrorCode.MALFORMED_REQUEST);
@@ -328,14 +347,14 @@ public class ReviewService {
         return new FieldErrorItem("observations[" + i + "]." + name, reason, message);
     }
 
-    private static boolean isEdited(Observation o, ObservationInput in) {
+    static boolean isEdited(Observation o, ObservationInput in) {
         return !Objects.equals(o.getOriginalName(), trim(in.originalName()))
                 || !Objects.equals(o.getOriginalValue(), trim(in.originalValue()))
                 || !Objects.equals(o.getUnitText(), trimToNull(in.unitText()))
                 || !Objects.equals(o.getReferenceText(), trimToNull(in.referenceText()));
     }
 
-    private static void apply(Observation o, ObservationInput in, int rowOrder, LocalDateTime now) {
+    static void apply(Observation o, ObservationInput in, int rowOrder, LocalDateTime now) {
         o.setOriginalName(trim(in.originalName()));
         o.setOriginalValue(trim(in.originalValue()));
         o.setUnitText(trimToNull(in.unitText()));
@@ -346,11 +365,11 @@ public class ReviewService {
         ObservationParser.derive(o);
     }
 
-    private static String trim(String s) {
+    static String trim(String s) {
         return s == null ? null : s.trim();
     }
 
-    private static String trimToNull(String s) {
+    static String trimToNull(String s) {
         if (s == null) {
             return null;
         }
@@ -385,7 +404,7 @@ public class ReviewService {
                 p.getPreviewObjectKey() != null);
     }
 
-    private static ObservationView toObservationView(Observation o) {
+    static ObservationView toObservationView(Observation o) {
         return new ObservationView(o.getId(), o.getOriginalName(), o.getOriginalValue(), o.getUnitText(),
                 o.getReferenceText(), o.getResultKind(), o.getAbnormalFlag(), o.getConfidence(),
                 o.getSourcePhotoId(), o.getRowOrder());

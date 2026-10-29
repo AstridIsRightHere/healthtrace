@@ -61,4 +61,19 @@
     <delete id="deleteByReport">
         DELETE FROM observation WHERE report_id = #{reportId}
     </delete>
+    <!-- FR-014 修改正式结果：名称/单位可能变化，先清空标准指标映射，随后由 assignMetricDefinitions 重新映射 -->
+    <update id="updateFormal">
+        UPDATE observation
+        SET original_name = #{originalName}, original_value = #{originalValue}, result_kind = #{resultKind},
+            numeric_value = #{numericValue}, unit_text = #{unitText}, reference_text = #{referenceText},
+            reference_low = #{referenceLow}, reference_high = #{referenceHigh}, abnormal_flag = #{abnormalFlag},
+            examination_date = #{examinationDate}, source_photo_id = #{sourcePhotoId}, row_order = #{rowOrder},
+            confidence = #{confidence}, metric_definition_id = NULL, updated_at = #{updatedAt}
+        WHERE id = #{id} AND report_id = #{reportId} AND status = 'FORMAL'
+    </update>
+
+    <delete id="deleteFormalById">
+        DELETE FROM observation WHERE id = #{id} AND report_id = #{reportId} AND status = 'FORMAL'
+    </delete>
+
 </mapper>

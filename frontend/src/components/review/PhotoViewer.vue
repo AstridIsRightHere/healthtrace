@@ -1,6 +1,6 @@
 <script setup lang="ts">
 // 原图对照（FR-007）：图片支持预览/原图切换与放大；PDF 用浏览器内置阅读器；HEIC 浏览器不支持时给出提示
-import { computed, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { reportApi, type PhotoView } from '../../api/report'
 
 const props = defineProps<{ photos: PhotoView[] }>()
@@ -25,6 +25,51 @@ watch(index, () => {
   useOriginal.value = false
   imageFailed.value = false
 })
+
+/*
+ * PDF 不直接把接口地址放进 iframe：后端全站 X-Frame-Options: DENY，浏览器会拒绝在框架中显示接口响应
+ * （表现为“localhost 拒绝连接”）。改为 axios 取回二进制，生成同源 Blob URL 交给浏览器内置阅读器，
+ * 切页或卸载时 revoke 释放内存。
+ */
+const pdfUrl = ref('')
+const pdfLoading = ref(false)
+const pdfFailed = ref(false)
+let pdfController: AbortController | null = null
+
+function releasePdf() {
+  pdfController?.abort()
+  pdfController = null
+  if (pdfUrl.value) URL.revokeObjectURL(pdfUrl.value)
+  pdfUrl.value = ''
+}
+
+async function loadPdf(photoId: number) {
+  releasePdf()
+  pdfFailed.value = false
+  pdfLoading.value = true
+  const controller = new AbortController()
+  pdfController = controller
+  try {
+    const blob = await reportApi.fetchPhotoBlob(photoId, 'original', controller.signal)
+    if (controller.signal.aborted) return
+    pdfUrl.value = URL.createObjectURL(new Blob([blob], { type: 'application/pdf' }))
+  } catch {
+    if (!controller.signal.aborted) pdfFailed.value = true
+  } finally {
+    if (pdfController === controller) pdfLoading.value = false
+  }
+}
+
+watch(
+  () => (isPdf.value ? current.value?.id : null),
+  (photoId) => {
+    if (photoId != null) void loadPdf(photoId)
+    else releasePdf()
+  },
+  { immediate: true },
+)
+
+onBeforeUnmount(releasePdf)
 
 function select(next: number) {
   if (next >= 0 && next < props.photos.length) index.value = next
@@ -51,10 +96,20 @@ defineExpose({ select })
         </button>
       </div>
 
-      <div class="viewer-stage" :class="{ 'is-zoomed': zoomed }">
-        <template v-if="isPdf">
-          <iframe class="viewer-pdf" :src="originalUrl" :title="`第 ${current.pageOrder} 页 PDF 原件`"></iframe>
-        </template>
+      <div class="viewer-stage" :class="{ 'is-zoomed': zoomed, 'is-pdf': isPdf }">
+        <div v-if="isPdf" class="viewer-pdf-frame">
+          <iframe
+            v-if="pdfUrl"
+            class="viewer-pdf"
+            :src="pdfUrl"
+            :title="`第 ${current.pageOrder} 页 PDF 原件`"
+            data-testid="pdf-frame"
+          ></iframe>
+          <p v-else-if="pdfFailed" class="viewer-fallback" role="note" data-testid="pdf-error">
+            PDF 加载失败，可以在新标签页打开原件查看。
+          </p>
+          <p v-else class="viewer-fallback field-hint">PDF 加载中…</p>
+        </div>
         <template v-else-if="!imageFailed">
           <button
             type="button"

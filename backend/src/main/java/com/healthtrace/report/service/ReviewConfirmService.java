@@ -208,10 +208,7 @@ public class ReviewConfirmService {
                     errors.add(new FieldErrorItem("observations[" + i + "]", "REQUIRED", "该行为空"));
                     continue;
                 }
-                requireText(errors, i, "originalName", in.originalName(), NAME_MAX, "请填写项目名称");
-                requireText(errors, i, "originalValue", in.originalValue(), VALUE_MAX, "请填写结果");
-                limit(errors, i, "unitText", in.unitText(), UNIT_MAX);
-                limit(errors, i, "referenceText", in.referenceText(), REFERENCE_MAX);
+                validateInput(errors, "observations[" + i + "].", in);
             }
         }
         if (!errors.isEmpty()) {
@@ -219,18 +216,26 @@ public class ReviewConfirmService {
         }
     }
 
-    private static void requireText(List<FieldErrorItem> errors, int i, String name, String value, int max,
+    /** 单行结果的字段校验；prefix 为字段路径前缀（如 "observations[0]." 或 "operations[1].observation."）。 */
+    static void validateInput(List<FieldErrorItem> errors, String prefix, ObservationInput in) {
+        requireText(errors, prefix, "originalName", in.originalName(), NAME_MAX, "请填写项目名称");
+        requireText(errors, prefix, "originalValue", in.originalValue(), VALUE_MAX, "请填写结果");
+        limit(errors, prefix, "unitText", in.unitText(), UNIT_MAX);
+        limit(errors, prefix, "referenceText", in.referenceText(), REFERENCE_MAX);
+    }
+
+    private static void requireText(List<FieldErrorItem> errors, String prefix, String name, String value, int max,
                                     String requiredMessage) {
         if (value == null || value.isBlank()) {
-            errors.add(field(i, name, "REQUIRED", requiredMessage));
+            errors.add(new FieldErrorItem(prefix + name, "REQUIRED", requiredMessage));
         } else {
-            limit(errors, i, name, value, max);
+            limit(errors, prefix, name, value, max);
         }
     }
 
-    private static void limit(List<FieldErrorItem> errors, int i, String name, String value, int max) {
+    private static void limit(List<FieldErrorItem> errors, String prefix, String name, String value, int max) {
         if (value != null && value.trim().codePointCount(0, value.trim().length()) > max) {
-            errors.add(field(i, name, "TOO_LONG", "不能超过 " + max + " 个字符"));
+            errors.add(new FieldErrorItem(prefix + name, "TOO_LONG", "不能超过 " + max + " 个字符"));
         }
     }
 

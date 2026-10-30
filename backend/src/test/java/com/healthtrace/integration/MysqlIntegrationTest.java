@@ -191,18 +191,7 @@ class MysqlIntegrationTest {
         assertThat(byReport).extracting(TrendObservation::getMetricCode)
                 .containsExactly("WBC", "ALT", "NEUT_PCT", null, null);
 
-        // FR-014 修改正式结果：清空映射后重新映射（改名为不认识的名称则保持未映射）
-        Observation edited = formal.get(0);
-        edited.setOriginalName("白细胞计数");
-        edited.setUpdatedAt(NOW.plusHours(2));
-        assertThat(observationMapper.updateFormal(edited)).isEqualTo(1);
-        assertThat(metricCodeOf(edited.getId())).isNull();
-        // Connector/J 默认返回匹配行数（useAffectedRows=false），已映射未变化的 ALT、NEUT_PCT 也计入
-        assertThat(observationMapper.assignMetricDefinitions(reportId)).isEqualTo(3);
-        assertThat(metricCodeOf(edited.getId())).isEqualTo("WBC");
-
-        assertThat(observationMapper.deleteFormalById(reportId, unknown.getId())).isEqualTo(1);
-        assertThat(observationMapper.findByReport(reportId, ObservationStatus.FORMAL)).hasSize(4);
+        // FR-014 修订（SUPERSEDED/RETRACTED）路径见 ObservationRevisionIntegrationTest
 
         // 未确认报告的彻底删除路径
         long other = seedReport(profileId, "PENDING_CONFIRMATION", "NORMAL");

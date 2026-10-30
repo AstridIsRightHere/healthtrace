@@ -47,7 +47,7 @@ public class ReportQueryService {
     }
 
     /**
-     * 报告列表。支持 DRAFT（待处理）与 CONFIRMED（已确认）筛选；limit 为空表示全部，
+     * 报告列表。支持 DRAFT（待处理）、CONFIRMED（已确认）与 REMOVED（回收站，FR-016）筛选；limit 为空表示全部，
      * total 为忽略 limit 时满足筛选条件的总数（SQL LIMIT + 独立 COUNT）。
      */
     public ListPage<ReportListItem> listReports(long accountId, long profileId, ReportListFilter filter,
@@ -60,8 +60,10 @@ public class ReportQueryService {
                     () -> reportMapper.countPendingByProfile(profileId), ReportQueryService::toListItem);
             case CONFIRMED -> ListPage.of(reportMapper.findConfirmedByProfile(profileId, limit), limit,
                     () -> reportMapper.countConfirmedByProfile(profileId), ReportQueryService::toListItem);
-            case null -> throw new ApiException(ErrorCode.VALIDATION_FAILED, "当前仅支持 status=DRAFT 或 CONFIRMED",
-                    List.of(new FieldErrorItem("status", "NotSupported", "当前仅支持 status=DRAFT 或 CONFIRMED")));
+            case REMOVED -> ListPage.of(reportMapper.findRemovedByProfile(profileId, limit), limit,
+                    () -> reportMapper.countRemovedByProfile(profileId), ReportQueryService::toListItem);
+            case null -> throw new ApiException(ErrorCode.VALIDATION_FAILED, "当前仅支持 status=DRAFT、CONFIRMED 或 REMOVED",
+                    List.of(new FieldErrorItem("status", "NotSupported", "当前仅支持 status=DRAFT、CONFIRMED 或 REMOVED")));
         };
     }
 
@@ -111,6 +113,6 @@ public class ReportQueryService {
     private static ReportListItem toListItem(ReportSummary s) {
         return new ReportListItem(s.getId(), s.getTitle(), s.getReportType(), s.getExaminationDate(),
                 s.getProcessingStatus(), s.getCreatedAt(), s.getPhotoCount(), s.getCoverPhotoId(),
-                s.getCoverHasPreview(), s.getLastOcrErrorCode());
+                s.getCoverHasPreview(), s.getLastOcrErrorCode(), s.getRemovedAt());
     }
 }

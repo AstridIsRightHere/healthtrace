@@ -69,6 +69,7 @@ async function onLogout() {
       <div class="trend-entry-actions">
         <RouterLink class="btn-secondary btn-small" :to="{ name: 'trends' }">查看趋势</RouterLink>
         <RouterLink class="btn-ghost btn-small" :to="{ name: 'report-compare' }">报告对比</RouterLink>
+        <RouterLink class="btn-ghost btn-small" :to="{ name: 'recycle-bin' }" data-testid="recycle-link">回收站</RouterLink>
       </div>
     </section>
     <UploadFab />

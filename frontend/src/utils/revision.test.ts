@@ -3,14 +3,14 @@ import type { ObservationView } from '../api/ocr'
 import type { RevisionView } from '../api/revision'
 import type { EditableRow } from '../components/review/types'
 import {
-  buildRevisePayload,
+  buildOperations,
+  buildRevisionCommand,
   formatChange,
   formatDateChange,
   formatRevisionTime,
   formatVersions,
   hasNoChange,
   sortRevisions,
-  toObservationInputs,
 } from './revision'
 
 const saved = (id: number, name: string, value: string, unit: string | null = '10^9/L'): ObservationView => ({
@@ -54,18 +54,33 @@ const revision = (id: number, createdAt: string): RevisionView => ({
   changes: [],
 })
 
-describe('toObservationInputs / buildRevisePayload', () => {
-  it('去掉首尾空白，空单位/参考范围为 null，新增行不带 id', () => {
-    expect(toObservationInputs([row(null, ' 血糖 ', ' 5.6 ', ' ', '')])).toEqual([
-      { id: undefined, originalName: '血糖', originalValue: '5.6', unitText: null, referenceText: null, sourcePhotoId: null },
+describe('buildOperations / buildRevisionCommand', () => {
+  const list = [saved(1, '白细胞', '6.1'), saved(2, '红细胞', '4.5')]
+
+  it('新行 ADD（去空白、空单位为 null），改动行 UPDATE，消失行 DELETE，未变行不提交', () => {
+    const ops = buildOperations(list, [row(1, '白细胞', '7.2'), row(null, ' 血糖 ', ' 5.6 ', ' ', '')])
+    expect(ops).toEqual([
+      {
+        op: 'UPDATE',
+        observationId: 1,
+        observation: { originalName: '白细胞', originalValue: '7.2', unitText: '10^9/L', referenceText: '3.5-9.5', sourcePhotoId: 1 },
+      },
+      {
+        op: 'ADD',
+        observation: { originalName: '血糖', originalValue: '5.6', unitText: null, referenceText: null, sourcePhotoId: null },
+      },
+      { op: 'DELETE', observationId: 2 },
     ])
+    expect(buildOperations(list, [row(2, '红细胞', '4.5'), row(1, '白细胞', '6.1')])).toEqual([])
   })
 
-  it('原因为空白时提交 null，否则去掉首尾空白', () => {
-    expect(buildRevisePayload(3, '2026-01-02', '  ', []).reason).toBeNull()
-    const payload = buildRevisePayload(3, '2026-01-02', ' 抄错了 ', [row(1, '白细胞', '6.1')])
-    expect(payload).toMatchObject({ version: 3, examinationDate: '2026-01-02', reason: '抄错了' })
-    expect(payload.observations[0]).toMatchObject({ id: 1, originalValue: '6.1' })
+  it('检查日期未变提交 null；原因为空白时提交 null，否则去掉首尾空白', () => {
+    const same = buildRevisionCommand(3, list, '2026-01-02', [row(1, '白细胞', '6.1')], '2026-01-02', '  ')
+    expect(same).toMatchObject({ version: 3, examinationDate: null, reason: null })
+    expect(same.operations).toEqual([{ op: 'DELETE', observationId: 2 }])
+    const changed = buildRevisionCommand(3, list, '2026-01-02', [], '2026-01-03', ' 抄错了 ')
+    expect(changed).toMatchObject({ examinationDate: '2026-01-03', reason: '抄错了' })
+    expect(changed.operations).toHaveLength(2)
   })
 })
 

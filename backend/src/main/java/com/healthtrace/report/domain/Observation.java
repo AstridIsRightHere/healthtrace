@@ -26,6 +26,13 @@ public class Observation {
     private int rowOrder;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
+    /** FR-014 修改链：本行替代的旧版本行。 */
+    private Long supersedesId;
+    /** 产生本行的修改记录（确认时生成的行为空）。 */
+    private Long createdRevisionId;
+    /** 使本行失效（SUPERSEDED / RETRACTED）的修改记录。 */
+    private Long retiredRevisionId;
+    private LocalDateTime retiredAt;
 
     public Long getId() {
         return id;
@@ -177,5 +184,37 @@ public class Observation {
 
     public void setUpdatedAt(LocalDateTime updatedAt) {
         this.updatedAt = updatedAt;
+    }
+
+    public Long getSupersedesId() {
+        return supersedesId;
+    }
+
+    public void setSupersedesId(Long supersedesId) {
+        this.supersedesId = supersedesId;
+    }
+
+    public Long getCreatedRevisionId() {
+        return createdRevisionId;
+    }
+
+    public void setCreatedRevisionId(Long createdRevisionId) {
+        this.createdRevisionId = createdRevisionId;
+    }
+
+    public Long getRetiredRevisionId() {
+        return retiredRevisionId;
+    }
+
+    public void setRetiredRevisionId(Long retiredRevisionId) {
+        this.retiredRevisionId = retiredRevisionId;
+    }
+
+    public LocalDateTime getRetiredAt() {
+        return retiredAt;
+    }
+
+    public void setRetiredAt(LocalDateTime retiredAt) {
+        this.retiredAt = retiredAt;
     }
 }

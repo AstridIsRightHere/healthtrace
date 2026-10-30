@@ -73,6 +73,11 @@ const router = createRouter({
       component: () => import('../views/VisitView.vue'),
     },
     {
+      path: '/recycle-bin',
+      name: 'recycle-bin',
+      component: () => import('../views/RecycleBinView.vue'),
+    },
+    {
       path: '/settings',
       name: 'settings',
       component: () => import('../views/SettingsView.vue'),

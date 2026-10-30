@@ -311,7 +311,7 @@ class ReportWebTest {
         given(queryService.listReports(7L, 11L, ReportListFilter.CONFIRMED, null)).willReturn(new ListPage<>(List.of(
                 new com.healthtrace.report.service.ReportViews.ReportListItem(31L, "甲功", ReportType.UNKNOWN,
                         LocalDate.of(2026, 10, 1), ProcessingStatus.CONFIRMED,
-                        LocalDateTime.of(2026, 10, 2, 9, 0), 1, 5L, true, null)), 1));
+                        LocalDateTime.of(2026, 10, 2, 9, 0), 1, 5L, true, null, null)), 1));
         mvc.perform(get("/api/v1/patient-profiles/11/reports").param("status", "confirmed").with(account(7L)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.items[0].id").value(31))
@@ -341,7 +341,7 @@ class ReportWebTest {
     void listReportGroupsReturnsGroups() throws Exception {
         var item = new com.healthtrace.report.service.ReportViews.ReportListItem(31L, "血常规", ReportType.UNKNOWN,
                 LocalDate.of(2026, 10, 1), ProcessingStatus.CONFIRMED,
-                LocalDateTime.of(2026, 10, 2, 9, 0), 1, 5L, true, null);
+                LocalDateTime.of(2026, 10, 2, 9, 0), 1, 5L, true, null, null);
         given(queryService.listConfirmedGroups(7L, 11L)).willReturn(List.of(
                 new com.healthtrace.report.service.ReportViews.ReportGroup("血常规", "血常规", 1,
                         LocalDate.of(2026, 10, 1), List.of(item))));

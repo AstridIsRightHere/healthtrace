@@ -3,6 +3,7 @@ package com.healthtrace.report.mapper;
 import com.healthtrace.report.domain.ProcessingStatus;
 import com.healthtrace.report.domain.Report;
 import com.healthtrace.report.domain.ReportSummary;
+import com.healthtrace.report.domain.VisibilityStatus;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 
@@ -30,6 +31,18 @@ public interface ReportMapper {
 
     /** 与 findConfirmedByProfile 相同筛选条件的总数（忽略 limit）。 */
     long countConfirmedByProfile(@Param("profileId") long profileId);
+
+    /** FR-016 回收站：visibility=LIST_REMOVED，按移除时间（updated_at）倒序、id 倒序。limit 为空表示全部。 */
+    List<ReportSummary> findRemovedByProfile(@Param("profileId") long profileId, @Param("limit") Integer limit);
+
+    /** 与 findRemovedByProfile 相同筛选条件的总数（忽略 limit）。 */
+    long countRemovedByProfile(@Param("profileId") long profileId);
+
+    /** FR-016 列表移除/恢复：仅当当前可见性为 fromStatus 时切换并版本 +1；返回 0 表示状态已变化。 */
+    int changeVisibility(@Param("id") long id,
+                         @Param("fromStatus") VisibilityStatus fromStatus,
+                         @Param("toStatus") VisibilityStatus toStatus,
+                         @Param("updatedAt") LocalDateTime updatedAt);
 
     /** 带行锁读取，用于确认等需要串行化的写操作。 */
     Report findByIdForUpdate(@Param("id") long id);

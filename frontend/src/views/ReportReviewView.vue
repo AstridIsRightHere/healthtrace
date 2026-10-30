@@ -15,7 +15,7 @@ import { reportApi } from '../api/report'
 import DeleteReportDialog from '../components/home/DeleteReportDialog.vue'
 import {
   REASON_MAX_LENGTH,
-  buildRevisePayload,
+  buildRevisionCommand,
   formatChange,
   formatDateChange,
   formatRevisionTime,
@@ -295,9 +295,16 @@ async function onRevise() {
   if (!view || submitting.value) return
   submitting.value = true
   try {
-    await revisionApi.revise(
+    await revisionApi.create(
       reportId,
-      buildRevisePayload(view.report.version, examinationDate.value, reason.value, rows.value),
+      buildRevisionCommand(
+        view.report.version,
+        view.observations,
+        view.report.examinationDate,
+        rows.value,
+        examinationDate.value,
+        reason.value,
+      ),
     )
     showConfirm.value = false
     revising.value = false
@@ -342,6 +349,23 @@ async function confirmPurge() {
     purgeError.value = errorMessage(error, '删除失败，请稍后重试')
   } finally {
     purging.value = false
+  }
+}
+
+// 列表移除（FR-016）：报告退出列表、趋势图和报告对比，可在回收站恢复或彻底删除
+const removing = ref(false)
+
+async function onListRemove() {
+  if (removing.value) return
+  removing.value = true
+  purgeError.value = ''
+  try {
+    await reportApi.listRemove(reportId)
+    await router.replace({ name: 'home' })
+  } catch (error) {
+    purgeError.value = errorMessage(error, '移除失败，请稍后重试')
+  } finally {
+    removing.value = false
   }
 }
 
@@ -522,8 +546,22 @@ onBeforeUnmount(() => {
         aria-labelledby="purge-title"
         data-testid="report-danger-zone"
       >
-        <h2 id="purge-title">彻底删除</h2>
-        <p class="field-hint">原件和所有分析数据将被永久移除，趋势图和报告对比中也不再出现，无法恢复。</p>
+        <h2 id="purge-title">移除与删除</h2>
+        <p class="field-hint">
+          移入回收站：报告不再出现在列表、趋势图和报告对比中，可在回收站恢复。彻底删除：原件和所有分析数据将被永久移除，无法恢复。
+        </p>
+        <p v-if="purgeError && !showPurge" class="notice notice-error" role="alert" data-testid="list-remove-error">
+          {{ purgeError }}
+        </p>
+        <button
+          type="button"
+          class="btn-secondary btn-small"
+          :disabled="removing || purging"
+          data-testid="list-remove"
+          @click="onListRemove"
+        >
+          {{ removing ? '移除中…' : '移入回收站' }}
+        </button>
         <button
           type="button"
           class="btn-danger-outline btn-small"

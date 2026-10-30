@@ -71,6 +71,43 @@
           AND r.processing_status = 'CONFIRMED'
     </select>
 
+    <!-- FR-016 回收站：列表移除的报告，按移除时间（updated_at）倒序；移除后无其他入口可改写 updated_at -->
+    <select id="findRemovedByProfile" resultType="com.healthtrace.report.domain.ReportSummary">
+        SELECT r.id, r.title, r.report_type, r.examination_date, r.processing_status, r.created_at,
+               (SELECT COUNT(*) FROM photo p
+                WHERE p.report_id = r.id AND p.storage_status = 'COMPLETE') AS photo_count,
+               c.id AS cover_photo_id,
+               (c.preview_object_key IS NOT NULL) AS cover_has_preview,
+               (SELECT j.error_code FROM ocr_job j
+                WHERE j.report_id = r.id ORDER BY j.id DESC LIMIT 1) AS last_ocr_error_code,
+               r.updated_at AS removed_at
+        FROM report r
+        LEFT JOIN photo c ON c.id = (
+            SELECT p2.id FROM photo p2
+            WHERE p2.report_id = r.id AND p2.storage_status = 'COMPLETE'
+            ORDER BY p2.page_order, p2.id LIMIT 1)
+        WHERE r.profile_id = #{profileId}
+          AND r.visibility_status = 'LIST_REMOVED'
+        ORDER BY r.updated_at DESC, r.id DESC
+        <if test="limit != null">LIMIT #{limit}</if>
+    </select>
+
+    <select id="countRemovedByProfile" resultType="long">
+        SELECT COUNT(*) FROM report r
+        WHERE r.profile_id = #{profileId}
+          AND r.visibility_status = 'LIST_REMOVED'
+    </select>
+
+    <!-- FR-016 列表移除 / 恢复：仅在源可见性匹配时切换，版本 +1 -->
+    <update id="changeVisibility">
+        UPDATE report
+        SET visibility_status = #{toStatus},
+            version = version + 1,
+            updated_at = #{updatedAt}
+        WHERE id = #{id}
+          AND visibility_status = #{fromStatus}
+    </update>
+
     <select id="findByIdForUpdate" resultType="com.healthtrace.report.domain.Report">
         SELECT id, profile_id, created_by, title, report_type, examination_date, processing_status,
                visibility_status, confirmed_by, confirmed_at, version, source_hospital_text, created_at, updated_at

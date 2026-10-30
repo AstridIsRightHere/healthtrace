@@ -553,24 +553,26 @@ onBeforeUnmount(() => {
         <p v-if="purgeError && !showPurge" class="notice notice-error" role="alert" data-testid="list-remove-error">
           {{ purgeError }}
         </p>
-        <button
-          type="button"
-          class="btn-secondary btn-small"
-          :disabled="removing || purging"
-          data-testid="list-remove"
-          @click="onListRemove"
-        >
-          {{ removing ? '移除中…' : '移入回收站' }}
-        </button>
-        <button
-          type="button"
-          class="btn-danger-outline btn-small"
-          :disabled="purging"
-          data-testid="purge-open"
-          @click="openPurge"
-        >
-          彻底删除这份报告
-        </button>
+        <div class="danger-actions">
+          <button
+            type="button"
+            class="btn-secondary btn-small"
+            :disabled="removing || purging"
+            data-testid="list-remove"
+            @click="onListRemove"
+          >
+            {{ removing ? '移除中…' : '移入回收站' }}
+          </button>
+          <button
+            type="button"
+            class="btn-danger-outline btn-small"
+            :disabled="purging"
+            data-testid="purge-open"
+            @click="openPurge"
+          >
+            彻底删除这份报告
+          </button>
+        </div>
       </section>
 
       <DeleteReportDialog

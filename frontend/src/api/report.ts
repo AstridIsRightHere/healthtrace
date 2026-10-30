@@ -140,4 +140,10 @@ export const reportApi = {
   /** 图片访问地址：同源会话 Cookie 鉴权，服务端返回 no-store 或 302 到短时签名 URL */
   photoUrl: (photoId: number, variant: PhotoVariant = 'preview') =>
     `/api/v1/photos/${photoId}/access?variant=${variant}`,
+
+  /** 以二进制取回原件（PDF 预览用）：同源会话 Cookie 鉴权，对象存储的 302 由浏览器自动跟随 */
+  fetchPhotoBlob: (photoId: number, variant: PhotoVariant = 'original', signal?: AbortSignal) =>
+    api
+      .get<Blob>(`/photos/${photoId}/access`, { params: { variant }, responseType: 'blob', signal })
+      .then((res) => res.data),
 }

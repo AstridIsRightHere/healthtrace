@@ -395,6 +395,21 @@ class ReportWebTest {
     }
 
     @Test
+    void accessPdfOriginalIsInlineWithPdfContentType() throws Exception {
+        byte[] pdf = "%PDF-1.4\n%%EOF".getBytes(java.nio.charset.StandardCharsets.US_ASCII);
+        given(queryService.openPhoto(7L, 99L, PhotoVariant.ORIGINAL))
+                .willReturn(new PhotoContent(null, new ByteArrayInputStream(pdf), "application/pdf", pdf.length));
+        mvc.perform(get("/api/v1/photos/99/access").param("variant", "original").with(account(7L)))
+                .andExpect(status().isOk())
+                .andExpect(header().string("Content-Type", "application/pdf"))
+                // 必须 inline：attachment 会让浏览器下载而不是显示
+                .andExpect(header().string("Content-Disposition", "inline"))
+                // 全站禁止被嵌入框架（防点击劫持），前端用 Blob URL 显示 PDF，不依赖放开该头
+                .andExpect(header().string("X-Frame-Options", "DENY"))
+                .andExpect(content().bytes(pdf));
+    }
+
+    @Test
     void accessSignedPhotoRedirects() throws Exception {
         given(queryService.openPhoto(7L, 99L, PhotoVariant.PREVIEW))
                 .willReturn(new PhotoContent(URI.create("https://oss.example.com/x?sig=1"), null, "image/jpeg", 10));

@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.healthtrace.rights.deletion.DeletionMapper">
+
+    <insert id="insertLedger" useGeneratedKeys="true" keyProperty="id" keyColumn="id">
+        INSERT INTO deletion_ledger (event_type, subject_digest, item_count, status, requested_at, completed_at)
+        VALUES (#{eventType}, #{subjectDigest}, #{itemCount}, #{status}, #{requestedAt}, #{completedAt})
+    </insert>
+
+    <insert id="insertTask" useGeneratedKeys="true" keyProperty="id" keyColumn="id">
+        INSERT INTO storage_purge_task (object_key, ledger_id, created_at, attempts, last_attempt_at)
+        VALUES (#{objectKey}, #{ledgerId}, #{createdAt}, 0, NULL)
+    </insert>
+
+    <select id="findDueTasks" resultType="com.healthtrace.rights.deletion.StoragePurgeTask">
+        SELECT id, object_key, ledger_id, created_at, attempts, last_attempt_at
+        FROM storage_purge_task
+        WHERE created_at &lt; #{createdBefore}
+          AND (last_attempt_at IS NULL OR last_attempt_at &lt; #{attemptedBefore})
+        ORDER BY id
+        LIMIT #{limit}
+    </select>
+
+    <update id="markAttempt">
+        UPDATE storage_purge_task SET attempts = attempts + 1, last_attempt_at = #{now} WHERE id = #{id}
+    </update>
+
+    <delete id="deleteTask">
+        DELETE FROM storage_purge_task WHERE id = #{id}
+    </delete>
+
+    <update id="completeLedgerIfDone">
+        UPDATE deletion_ledger
+        SET status = 'COMPLETED', completed_at = #{now}
+        WHERE id = #{ledgerId}
+          AND status = 'STORAGE_PENDING'
+          AND NOT EXISTS (SELECT 1 FROM storage_purge_task t WHERE t.ledger_id = #{ledgerId})
+    </update>
+</mapper>

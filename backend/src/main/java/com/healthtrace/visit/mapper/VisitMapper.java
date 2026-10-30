@@ -35,6 +35,9 @@ public interface VisitMapper {
 
     int unlink(@Param("visitId") long visitId, @Param("reportId") long reportId);
 
+    /** 解除报告与全部就诊的关联（报告彻底删除前显式清理，不依赖级联）。 */
+    int unlinkReport(@Param("reportId") long reportId);
+
     /** 批量读取关联报告（只含 visibility=NORMAL），按检查日期倒序。 */
     List<LinkedReport> findLinkedReports(@Param("visitIds") Collection<Long> visitIds);
 }

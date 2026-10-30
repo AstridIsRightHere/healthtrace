@@ -188,7 +188,30 @@ input[aria-invalid='true'] {
   background: var(--accent-soft);
 }
 
+/* 不可恢复操作（彻底删除、注销账号） */
+.btn-danger {
+  color: #fff;
+  background: #b42318;
+  border: none;
+}
+
+.btn-danger:hover:not(:disabled) {
+  background: #912018;
+}
+
+.btn-danger-outline {
+  color: #b42318;
+  background: transparent;
+  border: 1px solid #b42318;
+}
+
+.btn-danger-outline:hover:not(:disabled) {
+  background: rgba(180, 35, 24, 0.08);
+}
+
 .btn-primary:disabled,
+.btn-danger:disabled,
+.btn-danger-outline:disabled,
 .btn-secondary:disabled {
   opacity: 0.6;
   cursor: not-allowed;
@@ -281,6 +304,25 @@ button.text-link {
   justify-content: space-between;
   align-items: center;
   margin-bottom: 32px;
+}
+
+.home-header-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+/* 不可恢复操作区域：彻底删除报告、注销账号 */
+.danger-zone {
+  border-color: rgba(180, 35, 24, 0.35);
+}
+
+.danger-zone h2 {
+  color: #b42318;
+}
+
+.danger-zone .btn-danger-outline {
+  justify-self: start;
 }
 
 .home-card {

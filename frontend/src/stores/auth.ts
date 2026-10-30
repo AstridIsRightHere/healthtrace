@@ -54,6 +54,12 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
+  /** 注销账号：成功后会话已被后端作废，清空本地状态；失败时保持登录状态并抛出错误 */
+  async function closeAccount(password: string): Promise<void> {
+    await accountApi.close(password)
+    clear()
+  }
+
   function clear(): void {
     user.value = null
     sessionChecked.value = true
@@ -62,5 +68,5 @@ export const useAuthStore = defineStore('auth', () => {
     useFollowStore().reset()
   }
 
-  return { user, isAuthenticated, login, restoreSession, logout, clear }
+  return { user, isAuthenticated, login, restoreSession, logout, closeAccount, clear }
 })

@@ -41,9 +41,12 @@ async function onLogout() {
         <h1 data-testid="home-greeting">{{ profile.greetingTitle || '你好，今天也要好好照顾自己' }}</h1>
         <p class="field-hint home-account">{{ auth.user?.email }}</p>
       </div>
-      <button class="btn-secondary btn-small" type="button" :disabled="loggingOut" data-testid="logout" @click="onLogout">
-        {{ loggingOut ? '退出中…' : '退出' }}
-      </button>
+      <div class="home-header-actions">
+        <RouterLink class="btn-ghost btn-small" :to="{ name: 'settings' }" data-testid="settings-link">设置</RouterLink>
+        <button class="btn-secondary btn-small" type="button" :disabled="loggingOut" data-testid="logout" @click="onLogout">
+          {{ loggingOut ? '退出中…' : '退出' }}
+        </button>
+      </div>
     </header>
 
     <!-- 未验证邮箱可建档，但后续上传接口会拦截（US-001），这里提前提示 -->

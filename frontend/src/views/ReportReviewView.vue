@@ -11,6 +11,8 @@ import RawTextPanel from '../components/review/RawTextPanel.vue'
 import ConfirmDialog from '../components/review/ConfirmDialog.vue'
 import type { EditableRow } from '../components/review/types'
 import { revisionApi, type RevisionView } from '../api/revision'
+import { reportApi } from '../api/report'
+import DeleteReportDialog from '../components/home/DeleteReportDialog.vue'
 import {
   REASON_MAX_LENGTH,
   buildRevisePayload,
@@ -315,6 +317,34 @@ async function onRevise() {
   }
 }
 
+// 彻底删除（FR-016）：任何状态均可删除（识别中的任务一并清除）；成功后回到首页
+const showPurge = ref(false)
+const purging = ref(false)
+const purgeError = ref('')
+
+function openPurge() {
+  purgeError.value = ''
+  showPurge.value = true
+}
+
+function cancelPurge() {
+  if (!purging.value) showPurge.value = false
+}
+
+async function confirmPurge() {
+  purging.value = true
+  purgeError.value = ''
+  try {
+    await reportApi.remove(reportId)
+    showPurge.value = false
+    await router.replace({ name: 'home' })
+  } catch (error) {
+    purgeError.value = errorMessage(error, '删除失败，请稍后重试')
+  } finally {
+    purging.value = false
+  }
+}
+
 function onDialogConfirm() {
   if (revising.value) void onRevise()
   else void onConfirm()
@@ -485,6 +515,34 @@ onBeforeUnmount(() => {
           </li>
         </ol>
       </section>
+
+      <section
+        v-if="!revising"
+        class="home-card danger-zone"
+        aria-labelledby="purge-title"
+        data-testid="report-danger-zone"
+      >
+        <h2 id="purge-title">彻底删除</h2>
+        <p class="field-hint">原件和所有分析数据将被永久移除，趋势图和报告对比中也不再出现，无法恢复。</p>
+        <button
+          type="button"
+          class="btn-danger-outline btn-small"
+          :disabled="purging"
+          data-testid="purge-open"
+          @click="openPurge"
+        >
+          彻底删除这份报告
+        </button>
+      </section>
+
+      <DeleteReportDialog
+        v-if="showPurge"
+        :report-title="draft.report.title || '这份报告'"
+        :deleting="purging"
+        :error="purgeError"
+        @confirm="confirmPurge"
+        @cancel="cancelPurge"
+      />
 
       <Transition name="toast">
         <p v-if="toast" class="toast notice-success" role="status" data-testid="report-edit-toast">{{ toast }}</p>

@@ -110,6 +110,11 @@ public class OcrJobProcessor {
             return;
         }
         OcrJob job = ocrJobMapper.findById(jobId);
+        if (job == null) {
+            // 领取后报告被彻底删除（FR-016），任务行随之删除：直接放弃
+            log.info("OCR 任务已随报告删除：jobId={}", jobId);
+            return;
+        }
         try {
             OcrResult result = ocrService.recognize(inputs(job.getReportId()));
             if (!saveSuccess(job, result)) {

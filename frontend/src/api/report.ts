@@ -117,7 +117,10 @@ export const reportApi = {
   listConfirmedGroups: (profileId: number) =>
     api.get<ReportGroup[]>(`/patient-profiles/${profileId}/report-groups`).then((res) => res.data),
 
-  /** DELETE /api/v1/reports/{reportId}：彻底删除本人名下尚未确认的报告 */
+  /**
+   * DELETE /api/v1/reports/{reportId}：彻底删除（FR-016），任何状态（含识别中、已确认）均可。
+   * 原件、预览图、OCR 任务、检验结果、修改记录和就诊关联一并清除，不可恢复。
+   */
   remove: (reportId: number) => api.delete<void>(`/reports/${reportId}`).then(() => undefined),
 
   /** 图片访问地址：同源会话 Cookie 鉴权，服务端返回 no-store 或 302 到短时签名 URL */

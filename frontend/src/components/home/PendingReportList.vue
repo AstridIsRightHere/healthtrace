@@ -134,22 +134,23 @@ onMounted(() => loadDrafts())
             </p>
           </div>
         </component>
-        <button
-          v-if="isEmpty(report)"
-          type="button"
-          class="btn-ghost btn-small"
-          :aria-label="`删除报告：${title(report)}`"
-          @click="askDelete(report)"
-        >
-          删除
-        </button>
         <RouterLink
-          v-else
+          v-if="!isEmpty(report)"
           class="btn-secondary btn-small"
           :to="{ name: 'report-review', params: { reportId: String(report.id) } }"
         >
           {{ actionText(report.processingStatus) }}
         </RouterLink>
+        <!-- 任何状态均可彻底删除（FR-016）；识别中的任务随报告一并清除 -->
+        <button
+          type="button"
+          class="btn-ghost btn-small"
+          :aria-label="`彻底删除报告：${title(report)}`"
+          data-testid="purge-open"
+          @click="askDelete(report)"
+        >
+          彻底删除
+        </button>
       </li>
     </ul>
 

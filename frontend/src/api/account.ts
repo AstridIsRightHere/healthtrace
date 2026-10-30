@@ -37,6 +37,13 @@ export const accountApi = {
   /** DELETE /api/v1/sessions/current：退出 */
   logout: () => api.delete<void>('/sessions/current').then(() => undefined),
 
+  /**
+   * POST /api/v1/account-closure：注销账号（FR-017）。需再次输入密码；
+   * 成功 204 后后端已删除账号与全部档案数据并作废会话，调用方按已退出处理。
+   */
+  close: (password: string) =>
+    api.post<void>('/account-closure', { password }).then(() => undefined),
+
   /** GET /api/v1/accounts/me：当前账号；401 由调用方处理，不触发全局跳转 */
   me: () =>
     api.get<AccountView>('/accounts/me', { skipAuthRedirect: true }).then((res) => res.data),

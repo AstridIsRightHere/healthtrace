@@ -72,6 +72,13 @@ const router = createRouter({
       name: 'visits',
       component: () => import('../views/VisitView.vue'),
     },
+    {
+      path: '/settings',
+      name: 'settings',
+      component: () => import('../views/SettingsView.vue'),
+      // 未建档的账号同样可以注销（FR-017）
+      meta: { allowWithoutProfile: true },
+    },
     // 后端 dev 邮件日志中的链接为 /verify-email?token=...，保留查询参数转到 /verify
     { path: '/verify-email', redirect: (to) => ({ name: 'verify', query: to.query }) },
     { path: '/:pathMatch(.*)*', redirect: '/' },

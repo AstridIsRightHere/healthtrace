@@ -33,7 +33,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
- * DELETE /api/v1/reports/{reportId}：未登录 401、无 CSRF 403、成功 204、越权 404、已确认/识别中 409。
+ * DELETE /api/v1/reports/{reportId}：未登录 401、无 CSRF 403、任意状态成功 204、越权 404。
  */
 @WebMvcTest(controllers = {ReportDeletionController.class, CsrfController.class})
 @Import({SecurityConfig.class, ErrorResponseWriter.class, ClockConfig.class})
@@ -67,7 +67,7 @@ class ReportDeletionWebTest {
         mvc.perform(delete("/api/v1/reports/21").session(session).header("X-CSRF-TOKEN", token))
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.code").value("HT-2001"));
-        verify(deletionService, never()).deleteUnconfirmed(anyLong(), anyLong());
+        verify(deletionService, never()).delete(anyLong(), anyLong());
     }
 
     @Test
@@ -75,35 +75,25 @@ class ReportDeletionWebTest {
         mvc.perform(delete("/api/v1/reports/21").with(account(7)))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.code").value("HT-2005"));
-        verify(deletionService, never()).deleteUnconfirmed(anyLong(), anyLong());
+        verify(deletionService, never()).delete(anyLong(), anyLong());
     }
 
     @Test
-    void deleteOwnUnconfirmedReturns204() throws Exception {
+    void deleteOwnReportReturns204() throws Exception {
         MockHttpSession session = new MockHttpSession();
         String token = csrfToken(session);
         mvc.perform(delete("/api/v1/reports/21").session(session).header("X-CSRF-TOKEN", token).with(account(7)))
                 .andExpect(status().isNoContent());
-        verify(deletionService).deleteUnconfirmed(7L, 21L);
+        verify(deletionService).delete(7L, 21L);
     }
 
     @Test
     void deleteOthersReportIs404() throws Exception {
-        willThrow(new ApiException(ErrorCode.RESOURCE_NOT_FOUND)).given(deletionService).deleteUnconfirmed(7L, 99L);
+        willThrow(new ApiException(ErrorCode.RESOURCE_NOT_FOUND)).given(deletionService).delete(7L, 99L);
         MockHttpSession session = new MockHttpSession();
         String token = csrfToken(session);
         mvc.perform(delete("/api/v1/reports/99").session(session).header("X-CSRF-TOKEN", token).with(account(7)))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.code").value("HT-3001"));
-    }
-
-    @Test
-    void deleteConfirmedReportIs409() throws Exception {
-        willThrow(new ApiException(ErrorCode.REPORT_STATE_CONFLICT)).given(deletionService).deleteUnconfirmed(7L, 21L);
-        MockHttpSession session = new MockHttpSession();
-        String token = csrfToken(session);
-        mvc.perform(delete("/api/v1/reports/21").session(session).header("X-CSRF-TOKEN", token).with(account(7)))
-                .andExpect(status().isConflict())
-                .andExpect(jsonPath("$.code").value("HT-4002"));
     }
 }

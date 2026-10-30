@@ -111,6 +111,10 @@
         WHERE id = #{id} AND processing_status IN ('UPLOADING', 'PENDING_CONFIRMATION', 'FAILED')
     </delete>
 
+    <delete id="deleteById">
+        DELETE FROM report WHERE id = #{id}
+    </delete>
+
     <!-- FR-014 修改已确认报告（乐观锁）：只改检查日期与版本，状态保持 CONFIRMED -->
     <update id="revise">
         UPDATE report

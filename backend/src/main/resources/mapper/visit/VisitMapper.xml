@@ -55,6 +55,10 @@
         DELETE FROM visit_report WHERE visit_id = #{visitId} AND report_id = #{reportId}
     </delete>
 
+    <delete id="unlinkReport">
+        DELETE FROM visit_report WHERE report_id = #{reportId}
+    </delete>
+
     <select id="findLinkedReports" resultType="com.healthtrace.visit.domain.LinkedReport">
         SELECT vr.visit_id, r.id AS report_id, r.title, r.report_type, r.examination_date, r.processing_status
         FROM visit_report vr

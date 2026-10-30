@@ -1934,3 +1934,331 @@ legend {
     animation-duration: 3s;
   }
 }
+
+/*
+ * 主导航框架（AppLayout）：同一份 <nav>，按视口切换形态。
+ * 移动端（<960px）：底部固定 4 Tab 栏，内容区底部预留导航高度 + 安全区，避免遮挡；
+ * 桌面端（≥960px）：左侧固定侧边栏（品牌 + 4 项 + 上传报告），内容区左侧留出侧栏宽度。
+ */
+:root {
+  --nav-height: 64px;
+  --nav-safe-bottom: env(safe-area-inset-bottom, 0px);
+  --sidebar-width: 232px;
+}
+
+.app-shell {
+  min-height: 100svh;
+}
+
+.app-main {
+  min-width: 0;
+  padding-bottom: calc(var(--nav-height) + var(--nav-safe-bottom));
+}
+
+.app-nav {
+  position: fixed;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 40;
+  padding-bottom: var(--nav-safe-bottom);
+  background: rgba(255, 255, 255, 0.96);
+  border-top: 1px solid var(--border);
+  box-shadow: 0 -6px 20px rgba(92, 81, 73, 0.06);
+}
+
+.app-nav-brand,
+.app-nav-upload {
+  display: none;
+}
+
+.app-nav-list {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  max-width: 560px;
+  height: var(--nav-height);
+  margin: 0 auto;
+  padding: 0;
+  list-style: none;
+}
+
+.app-nav-link {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  justify-content: center;
+  align-items: center;
+  height: 100%;
+  min-height: 44px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--muted);
+  text-decoration: none;
+  border-radius: 12px;
+  transition: color 0.2s, background-color 0.2s;
+}
+
+.app-nav-link:hover {
+  color: var(--text-h);
+}
+
+.app-nav-link.is-active {
+  font-weight: 600;
+  color: var(--accent-hover);
+}
+
+.app-nav-link:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: -4px;
+}
+
+.app-nav-icon {
+  width: 24px;
+  height: 24px;
+  flex-shrink: 0;
+}
+
+/* 移动端悬浮上传按钮位于底部导航之上 */
+.app-main .upload-fab {
+  bottom: calc(var(--nav-height) + var(--nav-safe-bottom) + 16px);
+}
+
+.app-main .toast {
+  bottom: calc(var(--nav-height) + var(--nav-safe-bottom) + 16px);
+}
+
+@media (min-width: 960px) {
+  .app-main {
+    padding-bottom: 0;
+    margin-left: var(--sidebar-width);
+  }
+
+  .app-nav {
+    top: 0;
+    right: auto;
+    width: var(--sidebar-width);
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+    padding: 28px 16px;
+    background: var(--card-bg);
+    border-top: none;
+    border-right: 1px solid var(--border);
+    box-shadow: none;
+  }
+
+  .app-nav-brand {
+    display: block;
+    padding: 0 12px;
+    font-size: 20px;
+  }
+
+  .app-nav-list {
+    display: grid;
+    grid-template-columns: none;
+    gap: 4px;
+    max-width: none;
+    height: auto;
+    margin: 0;
+  }
+
+  .app-nav-link {
+    flex-direction: row;
+    gap: 12px;
+    justify-content: flex-start;
+    height: auto;
+    padding: 12px 14px;
+    font-size: 15px;
+  }
+
+  .app-nav-link:hover {
+    background: var(--bg);
+  }
+
+  .app-nav-link.is-active {
+    background: var(--accent-soft);
+  }
+
+  .app-nav-upload {
+    display: inline-flex;
+    margin-top: auto;
+  }
+
+  /* 桌面端由侧边栏“上传报告”承担，隐藏悬浮按钮 */
+  .app-main .upload-fab {
+    display: none;
+  }
+
+  .app-main .toast {
+    bottom: 32px;
+    left: calc(50% + var(--sidebar-width) / 2);
+  }
+
+  .app-main .home-dashboard {
+    padding-bottom: 48px;
+  }
+}
+
+/* 一级 Tab 页面 */
+.tab-page {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  padding-bottom: 32px;
+}
+
+.tab-page > .home-card {
+  margin: 0;
+}
+
+.tab-page .home-card h2 {
+  margin: 0;
+  font-size: 20px;
+  line-height: 1.4;
+  color: var(--text-h);
+}
+
+.tab-header {
+  display: grid;
+  gap: 4px;
+}
+
+.tab-header h1 {
+  margin: 0;
+  line-height: 1.3;
+}
+
+.records-upload {
+  grid-template-columns: 1fr auto;
+  align-items: center;
+}
+
+@media (max-width: 640px) {
+  .records-upload {
+    grid-template-columns: 1fr;
+    justify-items: start;
+  }
+
+  .tab-page > .home-card {
+    padding: 24px 20px;
+  }
+}
+
+.placeholder-block {
+  display: grid;
+  gap: 6px;
+  padding: 28px 20px;
+  text-align: center;
+  background: var(--bg);
+  border: 1px dashed var(--border);
+  border-radius: 16px;
+  overflow-wrap: anywhere;
+}
+
+.placeholder-title {
+  font-weight: 600;
+  color: var(--text-h);
+}
+
+/* 我的 */
+.me-account {
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  gap: 16px;
+}
+
+.me-avatar {
+  display: grid;
+  place-items: center;
+  width: 56px;
+  height: 56px;
+  font-size: 22px;
+  font-weight: 600;
+  color: var(--accent-hover);
+  background: var(--accent-soft);
+  border-radius: 50%;
+}
+
+.me-account-text {
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.me-name {
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--text-h);
+  overflow-wrap: anywhere;
+}
+
+.me-menu-card {
+  padding: 8px;
+}
+
+.tab-page > .me-menu-card {
+  padding: 8px;
+}
+
+.me-menu {
+  display: grid;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.me-menu > li + li {
+  border-top: 1px solid var(--border);
+}
+
+.me-menu-item {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  grid-template-areas: 'label arrow' 'hint arrow';
+  align-items: center;
+  width: 100%;
+  min-height: 56px;
+  padding: 12px 16px;
+  font: inherit;
+  text-align: left;
+  color: inherit;
+  text-decoration: none;
+  background: none;
+  border: none;
+  border-radius: 12px;
+  cursor: pointer;
+}
+
+.me-menu-item:hover:not(:disabled) {
+  background: var(--bg);
+}
+
+.me-menu-item:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: -2px;
+}
+
+.me-menu-item:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.me-menu-label {
+  grid-area: label;
+  font-weight: 600;
+  color: var(--text-h);
+}
+
+.me-menu-item .field-hint {
+  grid-area: hint;
+}
+
+.me-menu-arrow {
+  grid-area: arrow;
+  font-size: 22px;
+  color: var(--muted);
+}
+
+.me-logout {
+  width: 100%;
+}

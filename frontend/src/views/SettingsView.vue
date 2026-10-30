@@ -61,7 +61,7 @@ async function confirmClose() {
 <template>
   <main class="home-page settings-page">
     <header class="home-header">
-      <RouterLink class="btn-ghost btn-small" :to="{ name: 'home' }">← 返回首页</RouterLink>
+      <RouterLink class="btn-ghost btn-small" :to="{ name: 'me' }">← 返回我的</RouterLink>
       <p class="brand">账号设置</p>
     </header>
 

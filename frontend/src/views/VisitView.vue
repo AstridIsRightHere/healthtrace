@@ -200,7 +200,7 @@ async function remove(v: Visit) {
 <template>
   <main class="trend-page visit-page">
     <header class="home-header">
-      <RouterLink class="btn-ghost btn-small" :to="{ name: 'home' }">← 返回首页</RouterLink>
+      <RouterLink class="btn-ghost btn-small" :to="{ name: 'timeline' }">← 返回时间线</RouterLink>
       <p class="brand">就诊时间线</p>
       <span class="visit-count">{{ visits.length ? `共 ${visits.length} 次就诊` : '' }}</span>
     </header>

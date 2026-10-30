@@ -106,7 +106,7 @@ onMounted(async () => {
 <template>
   <main class="trend-page compare-page">
     <header class="home-header">
-      <RouterLink class="btn-ghost btn-small" :to="{ name: 'home' }">← 返回首页</RouterLink>
+      <RouterLink class="btn-ghost btn-small" :to="{ name: 'records' }">← 返回档案</RouterLink>
       <p class="brand">报告对比</p>
       <RouterLink class="btn-ghost btn-small" :to="{ name: 'trends' }">指标趋势</RouterLink>
     </header>

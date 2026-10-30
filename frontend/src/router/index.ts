@@ -11,6 +11,8 @@ declare module 'vue-router' {
     guestOnly?: boolean
     /** 登录后即可访问，不要求已建档（建档页） */
     allowWithoutProfile?: boolean
+    /** 所属一级导航 Tab（见 utils/navigation.ts），用于底部栏/侧边栏高亮 */
+    tab?: 'home' | 'records' | 'timeline' | 'me'
   }
 }
 
@@ -18,9 +20,32 @@ const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
   routes: [
     {
+      // 布局路由：四个一级 Tab 及其二级页面共用 AppLayout（底部栏 / 侧边栏）。
+      // meta.tab 声明所属 Tab，用于导航高亮；上传与核对是专注流程，不在布局内。
       path: '/',
-      name: 'home',
-      component: () => import('../views/HomeView.vue'),
+      component: () => import('../components/layout/AppLayout.vue'),
+      children: [
+        { path: '', name: 'home', component: () => import('../views/HomeView.vue'), meta: { tab: 'home' } },
+        { path: 'records', name: 'records', component: () => import('../views/RecordsView.vue'), meta: { tab: 'records' } },
+        { path: 'timeline', name: 'timeline', component: () => import('../views/TimelineView.vue'), meta: { tab: 'timeline' } },
+        { path: 'me', name: 'me', component: () => import('../views/ProfileView.vue'), meta: { tab: 'me' } },
+        { path: 'trends', name: 'trends', component: () => import('../views/TrendView.vue'), meta: { tab: 'home' } },
+        {
+          path: 'reports/compare',
+          name: 'report-compare',
+          component: () => import('../views/ReportCompareView.vue'),
+          meta: { tab: 'records' },
+        },
+        { path: 'visits', name: 'visits', component: () => import('../views/VisitView.vue'), meta: { tab: 'timeline' } },
+        { path: 'recycle-bin', name: 'recycle-bin', component: () => import('../views/RecycleBinView.vue'), meta: { tab: 'me' } },
+        {
+          path: 'settings',
+          name: 'settings',
+          component: () => import('../views/SettingsView.vue'),
+          // 未建档的账号同样可以注销（FR-017）
+          meta: { tab: 'me', allowWithoutProfile: true },
+        },
+      ],
     },
     {
       path: '/login',
@@ -56,33 +81,6 @@ const router = createRouter({
       name: 'report-review',
       component: () => import('../views/ReportReviewView.vue'),
       props: (route) => ({ reportId: Number(route.params.reportId) }),
-    },
-    {
-      path: '/trends',
-      name: 'trends',
-      component: () => import('../views/TrendView.vue'),
-    },
-    {
-      path: '/reports/compare',
-      name: 'report-compare',
-      component: () => import('../views/ReportCompareView.vue'),
-    },
-    {
-      path: '/visits',
-      name: 'visits',
-      component: () => import('../views/VisitView.vue'),
-    },
-    {
-      path: '/recycle-bin',
-      name: 'recycle-bin',
-      component: () => import('../views/RecycleBinView.vue'),
-    },
-    {
-      path: '/settings',
-      name: 'settings',
-      component: () => import('../views/SettingsView.vue'),
-      // 未建档的账号同样可以注销（FR-017）
-      meta: { allowWithoutProfile: true },
     },
     // 后端 dev 邮件日志中的链接为 /verify-email?token=...，保留查询参数转到 /verify
     { path: '/verify-email', redirect: (to) => ({ name: 'verify', query: to.query }) },

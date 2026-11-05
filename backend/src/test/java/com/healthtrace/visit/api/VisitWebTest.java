@@ -175,7 +175,7 @@ class VisitWebTest {
     @Test
     void linkReturnsVisitWithReports() throws Exception {
         given(visitService.linkReport(7, 31, 21)).willReturn(view(List.of(
-                new LinkedReportView(21, "血常规", null, LocalDate.of(2026, 10, 20), null))));
+                new LinkedReportView(21L, "血常规", null, null, LocalDate.of(2026, 10, 20), null, null))));
         MockHttpSession session = new MockHttpSession();
         String token = csrfToken(session);
         mvc.perform(put("/api/v1/visits/31/reports/21").session(session).header("X-CSRF-TOKEN", token)

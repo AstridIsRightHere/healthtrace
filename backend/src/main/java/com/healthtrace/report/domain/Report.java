@@ -11,7 +11,10 @@ public class Report {
     private Long createdBy;
     private String title;
     private ReportType reportType;
+    private ReportKind reportKind;
     private LocalDate examinationDate;
+    private String conclusionText;
+    private String sourceFileExtension;
     private ProcessingStatus processingStatus;
     private VisibilityStatus visibilityStatus;
     private Long confirmedBy;
@@ -59,6 +62,30 @@ public class Report {
 
     public void setReportType(ReportType reportType) {
         this.reportType = reportType;
+    }
+
+    public ReportKind getReportKind() {
+        return reportKind;
+    }
+
+    public void setReportKind(ReportKind reportKind) {
+        this.reportKind = reportKind;
+    }
+
+    public String getConclusionText() {
+        return conclusionText;
+    }
+
+    public void setConclusionText(String conclusionText) {
+        this.conclusionText = conclusionText;
+    }
+
+    public String getSourceFileExtension() {
+        return sourceFileExtension;
+    }
+
+    public void setSourceFileExtension(String sourceFileExtension) {
+        this.sourceFileExtension = sourceFileExtension;
     }
 
     public LocalDate getExaminationDate() {

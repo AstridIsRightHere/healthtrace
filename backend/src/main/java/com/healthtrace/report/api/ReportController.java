@@ -54,7 +54,9 @@ public class ReportController {
     /** 标题按码点上限在服务端校验，这里只做粗上限防止超大请求。 */
     public record CreateReportRequest(
             @Size(max = 1024) String title,
-            LocalDate examinationDate) {
+            LocalDate examinationDate,
+            String reportKind,
+            @Size(max = 65536) String conclusionText) {
     }
 
     @PostMapping("/api/v1/patient-profiles/{profileId}/reports")
@@ -62,16 +64,18 @@ public class ReportController {
     public ReportView createReport(@AuthenticationPrincipal AccountPrincipal principal,
                                    @PathVariable long profileId,
                                    @Valid @RequestBody(required = false) CreateReportRequest request) {
-        CreateReportRequest body = request == null ? new CreateReportRequest(null, null) : request;
-        return uploadService.createReport(principal.accountId(), profileId, body.title(), body.examinationDate());
+        CreateReportRequest body = request == null ? new CreateReportRequest(null, null, null, null) : request;
+        return uploadService.createReport(principal.accountId(), profileId, body.title(), body.examinationDate(),
+                body.reportKind(), body.conclusionText());
     }
 
     @GetMapping("/api/v1/patient-profiles/{profileId}/reports")
     public ListPage<ReportListItem> listReports(@AuthenticationPrincipal AccountPrincipal principal,
                                                 @PathVariable long profileId,
                                                 @RequestParam(name = "status", defaultValue = "DRAFT") ReportListFilter status,
+                                                @RequestParam(name = "kind", required = false) String kind,
                                                 @RequestParam(name = "limit", required = false) String limit) {
-        return queryService.listReports(principal.accountId(), profileId, status, ListPage.parseLimit(limit));
+        return queryService.listReports(principal.accountId(), profileId, status, kind, ListPage.parseLimit(limit));
     }
 
     /** 已确认报告按种类聚合（FR-010 报告对比入口）。他人档案 404 HT-3001。 */
@@ -79,6 +83,13 @@ public class ReportController {
     public List<ReportViews.ReportGroup> listReportGroups(@AuthenticationPrincipal AccountPrincipal principal,
                                                           @PathVariable long profileId) {
         return queryService.listConfirmedGroups(principal.accountId(), profileId);
+    }
+
+    /** 影像/非结构化报告上传完成后归档（任务二）。他人报告 404 HT-3001，结构化报告 409 HT-4002。 */
+    @PostMapping("/api/v1/reports/{reportId}/completion")
+    public ReportView completeImaging(@AuthenticationPrincipal AccountPrincipal principal,
+                                      @PathVariable long reportId) {
+        return uploadService.completeImaging(principal.accountId(), reportId);
     }
 
     /**

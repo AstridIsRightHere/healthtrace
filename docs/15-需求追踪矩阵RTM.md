@@ -60,6 +60,8 @@
 | FR-009 | [08 核心接口清单：followed-metrics](08-核心接口清单草案.md) | GET/POST /api/v1/patient-profiles/{profileId}/followed-metrics：整表替换保存关注列表与顺序；新档案默认关注 WBC、HGB、PLT、ALT、AST、CREA；GET /api/v1/metric-definitions 供“管理关注”选择 |
 | FR-012 | [08 核心接口清单：metric-summaries](08-核心接口清单草案.md) | 不建 /home 聚合接口（2026-10-29 评审决定）；首页由 followed-metrics、metric-summaries（一次请求取全部关注卡）、reports?status=DRAFT&limit=3、visits?limit=3 组成 |
 | FR-013 | [07 页面清单：PG-011/PG-012](07-页面清单与结构图.md) | 就诊时间线、就诊编辑/详情；检查日与就诊日分别展示 |
+| FR-013 | [08 核心接口清单：timeline、reports/{id}/visits](08-核心接口清单草案.md) | 时间线 Tab 合并就诊与未关联就诊的报告按年分组；报告详情展示关联就诊 |
+| FR-004 | [19 数据字典：REPORT.report_kind/conclusion_text](19-数据字典.md) | V11 新增报告种类（检验/影像/其他）与结论文本；影像/其他报告经 POST /reports/{id}/completion 直接归档，不走 OCR；档案 Tab 按种类筛选 |
 
 ## 实现与自动化测试追踪（2026-10-29）
 

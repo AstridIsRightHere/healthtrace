@@ -1,6 +1,7 @@
 package com.healthtrace.report.service;
 
 import com.healthtrace.report.domain.ProcessingStatus;
+import com.healthtrace.report.domain.ReportKind;
 import com.healthtrace.report.domain.ReportType;
 import com.healthtrace.report.service.ReportViews.ReportGroup;
 import com.healthtrace.report.service.ReportViews.ReportListItem;
@@ -15,7 +16,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 class ReportGroupingTest {
 
     private static ReportListItem item(long id, String title, ReportType type, LocalDate date) {
-        return new ReportListItem(id, title, type, date, ProcessingStatus.CONFIRMED,
+        return new ReportListItem(id, title, type, ReportKind.STRUCTURED, date, null, ProcessingStatus.CONFIRMED,
                 LocalDateTime.of(2026, 10, 1, 9, 0), 1, null, false, null, null);
     }
 

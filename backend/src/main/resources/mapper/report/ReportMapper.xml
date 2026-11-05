@@ -3,22 +3,26 @@
 <mapper namespace="com.healthtrace.report.mapper.ReportMapper">
 
     <insert id="insert" useGeneratedKeys="true" keyProperty="id" keyColumn="id">
-        INSERT INTO report (profile_id, created_by, title, report_type, examination_date, processing_status,
+        INSERT INTO report (profile_id, created_by, title, report_type, report_kind, examination_date,
+                            conclusion_text, source_file_extension, processing_status,
                             visibility_status, confirmed_by, confirmed_at, version, source_hospital_text,
                             created_at, updated_at)
-        VALUES (#{profileId}, #{createdBy}, #{title}, #{reportType}, #{examinationDate}, #{processingStatus},
+        VALUES (#{profileId}, #{createdBy}, #{title}, #{reportType}, #{reportKind}, #{examinationDate},
+                #{conclusionText}, #{sourceFileExtension}, #{processingStatus},
                 #{visibilityStatus}, #{confirmedBy}, #{confirmedAt}, #{version}, #{sourceHospitalText},
                 #{createdAt}, #{updatedAt})
     </insert>
 
     <select id="findById" resultType="com.healthtrace.report.domain.Report">
-        SELECT id, profile_id, created_by, title, report_type, examination_date, processing_status,
+        SELECT id, profile_id, created_by, title, report_type, report_kind, examination_date,
+               conclusion_text, source_file_extension, processing_status,
                visibility_status, confirmed_by, confirmed_at, version, source_hospital_text, created_at, updated_at
         FROM report WHERE id = #{id}
     </select>
 
     <select id="findPendingByProfile" resultType="com.healthtrace.report.domain.ReportSummary">
-        SELECT r.id, r.title, r.report_type, r.examination_date, r.processing_status, r.created_at,
+        SELECT r.id, r.title, r.report_type, r.report_kind, r.examination_date, r.conclusion_text,
+               r.processing_status, r.created_at,
                (SELECT COUNT(*) FROM photo p
                 WHERE p.report_id = r.id AND p.storage_status = 'COMPLETE') AS photo_count,
                c.id AS cover_photo_id,
@@ -33,6 +37,7 @@
         WHERE r.profile_id = #{profileId}
           AND r.visibility_status = 'NORMAL'
           AND r.processing_status &lt;&gt; 'CONFIRMED'
+          <if test="kind != null">AND UPPER(r.report_kind) = UPPER(#{kind})</if>
         ORDER BY r.created_at DESC, r.id DESC
         <if test="limit != null">LIMIT #{limit}</if>
     </select>
@@ -42,10 +47,12 @@
         WHERE r.profile_id = #{profileId}
           AND r.visibility_status = 'NORMAL'
           AND r.processing_status &lt;&gt; 'CONFIRMED'
+          <if test="kind != null">AND UPPER(r.report_kind) = UPPER(#{kind})</if>
     </select>
 
     <select id="findConfirmedByProfile" resultType="com.healthtrace.report.domain.ReportSummary">
-        SELECT r.id, r.title, r.report_type, r.examination_date, r.processing_status, r.created_at,
+        SELECT r.id, r.title, r.report_type, r.report_kind, r.examination_date, r.conclusion_text,
+               r.processing_status, r.created_at,
                (SELECT COUNT(*) FROM photo p
                 WHERE p.report_id = r.id AND p.storage_status = 'COMPLETE') AS photo_count,
                c.id AS cover_photo_id,
@@ -60,6 +67,7 @@
         WHERE r.profile_id = #{profileId}
           AND r.visibility_status = 'NORMAL'
           AND r.processing_status = 'CONFIRMED'
+          <if test="kind != null">AND UPPER(r.report_kind) = UPPER(#{kind})</if>
         ORDER BY r.examination_date DESC, r.id DESC
         <if test="limit != null">LIMIT #{limit}</if>
     </select>
@@ -69,11 +77,13 @@
         WHERE r.profile_id = #{profileId}
           AND r.visibility_status = 'NORMAL'
           AND r.processing_status = 'CONFIRMED'
+          <if test="kind != null">AND UPPER(r.report_kind) = UPPER(#{kind})</if>
     </select>
 
     <!-- FR-016 回收站：列表移除的报告，按移除时间（updated_at）倒序；移除后无其他入口可改写 updated_at -->
     <select id="findRemovedByProfile" resultType="com.healthtrace.report.domain.ReportSummary">
-        SELECT r.id, r.title, r.report_type, r.examination_date, r.processing_status, r.created_at,
+        SELECT r.id, r.title, r.report_type, r.report_kind, r.examination_date, r.conclusion_text,
+               r.processing_status, r.created_at,
                (SELECT COUNT(*) FROM photo p
                 WHERE p.report_id = r.id AND p.storage_status = 'COMPLETE') AS photo_count,
                c.id AS cover_photo_id,
@@ -88,6 +98,7 @@
             ORDER BY p2.page_order, p2.id LIMIT 1)
         WHERE r.profile_id = #{profileId}
           AND r.visibility_status = 'LIST_REMOVED'
+          <if test="kind != null">AND UPPER(r.report_kind) = UPPER(#{kind})</if>
         ORDER BY r.updated_at DESC, r.id DESC
         <if test="limit != null">LIMIT #{limit}</if>
     </select>
@@ -96,6 +107,7 @@
         SELECT COUNT(*) FROM report r
         WHERE r.profile_id = #{profileId}
           AND r.visibility_status = 'LIST_REMOVED'
+          <if test="kind != null">AND UPPER(r.report_kind) = UPPER(#{kind})</if>
     </select>
 
     <!-- FR-016 列表移除 / 恢复：仅在源可见性匹配时切换，版本 +1 -->
@@ -161,5 +173,18 @@
         WHERE id = #{id}
           AND version = #{expectedVersion}
           AND processing_status = 'CONFIRMED'
+    </update>
+
+    <!-- 任务二：影像/非结构化报告不经过指标核对，上传完成后直接归档为 CONFIRMED -->
+    <update id="completeWithoutObservations">
+        UPDATE report
+        SET processing_status = 'CONFIRMED',
+            confirmed_by = #{confirmedBy},
+            confirmed_at = #{confirmedAt},
+            version = version + 1,
+            updated_at = #{confirmedAt}
+        WHERE id = #{id}
+          AND processing_status = 'UPLOADING'
+          AND report_kind != 'STRUCTURED'
     </update>
 </mapper>

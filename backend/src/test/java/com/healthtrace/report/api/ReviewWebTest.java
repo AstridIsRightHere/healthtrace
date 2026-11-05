@@ -162,7 +162,7 @@ class ReviewWebTest {
     @Test
     void draftReturnsReportAndObservations() throws Exception {
         DraftReport report = new DraftReport(21L, 11L, "血常规", LocalDate.of(2026, 10, 20),
-                ProcessingStatus.PENDING_CONFIRMATION, 2L);
+                ProcessingStatus.PENDING_CONFIRMATION, 2L, com.healthtrace.report.domain.ReportKind.STRUCTURED, null);
         given(confirmService.getDraft(7L, 21L)).willReturn(new DraftView(report, List.of(), null, null, List.of()));
         mvc.perform(get("/api/v1/reports/21/draft").with(account(7L)))
                 .andExpect(status().isOk())

@@ -20,23 +20,23 @@ public interface ReportMapper {
 
     Report findById(@Param("id") long id);
 
-    /** 待处理（DRAFT 别名）：visibility=NORMAL 且 processing_status≠CONFIRMED，按上传时间倒序。limit 为空表示全部。 */
-    List<ReportSummary> findPendingByProfile(@Param("profileId") long profileId, @Param("limit") Integer limit);
+    /** 待处理（DRAFT 别名）：visibility=NORMAL 且 processing_status≠CONFIRMED，按上传时间倒序。kind 可选过滤（不区分大小写）。limit 为空表示全部。 */
+    List<ReportSummary> findPendingByProfile(@Param("profileId") long profileId, @Param("kind") String kind, @Param("limit") Integer limit);
 
     /** 与 findPendingByProfile 相同筛选条件的总数（忽略 limit）。 */
-    long countPendingByProfile(@Param("profileId") long profileId);
+    long countPendingByProfile(@Param("profileId") long profileId, @Param("kind") String kind);
 
-    /** 已确认：visibility=NORMAL 且 processing_status=CONFIRMED，按检查日期倒序、id 倒序。limit 为空表示全部。 */
-    List<ReportSummary> findConfirmedByProfile(@Param("profileId") long profileId, @Param("limit") Integer limit);
+    /** 已确认：visibility=NORMAL 且 processing_status=CONFIRMED，按检查日期倒序、id 倒序。kind 可选过滤（不区分大小写）。limit 为空表示全部。 */
+    List<ReportSummary> findConfirmedByProfile(@Param("profileId") long profileId, @Param("kind") String kind, @Param("limit") Integer limit);
 
     /** 与 findConfirmedByProfile 相同筛选条件的总数（忽略 limit）。 */
-    long countConfirmedByProfile(@Param("profileId") long profileId);
+    long countConfirmedByProfile(@Param("profileId") long profileId, @Param("kind") String kind);
 
-    /** FR-016 回收站：visibility=LIST_REMOVED，按移除时间（updated_at）倒序、id 倒序。limit 为空表示全部。 */
-    List<ReportSummary> findRemovedByProfile(@Param("profileId") long profileId, @Param("limit") Integer limit);
+    /** FR-016 回收站：visibility=LIST_REMOVED，按移除时间（updated_at）倒序、id 倒序。kind 可选过滤（不区分大小写）。limit 为空表示全部。 */
+    List<ReportSummary> findRemovedByProfile(@Param("profileId") long profileId, @Param("kind") String kind, @Param("limit") Integer limit);
 
     /** 与 findRemovedByProfile 相同筛选条件的总数（忽略 limit）。 */
-    long countRemovedByProfile(@Param("profileId") long profileId);
+    long countRemovedByProfile(@Param("profileId") long profileId, @Param("kind") String kind);
 
     /** FR-016 列表移除/恢复：仅当当前可见性为 fromStatus 时切换并版本 +1；返回 0 表示状态已变化。 */
     int changeVisibility(@Param("id") long id,
@@ -80,4 +80,9 @@ public interface ReportMapper {
                @Param("expectedVersion") long expectedVersion,
                @Param("examinationDate") LocalDate examinationDate,
                @Param("updatedAt") LocalDateTime updatedAt);
+
+    /** 影像/非结构化报告归档：UPLOADING 且非 STRUCTURED 时直接置为 CONFIRMED；返回 0 表示状态或形态不符。 */
+    int completeWithoutObservations(@Param("id") long id,
+                                    @Param("confirmedBy") long confirmedBy,
+                                    @Param("confirmedAt") LocalDateTime confirmedAt);
 }

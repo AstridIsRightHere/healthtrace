@@ -10,6 +10,7 @@ import com.healthtrace.report.domain.OcrJobStatus;
 import com.healthtrace.report.domain.Photo;
 import com.healthtrace.report.domain.ProcessingStatus;
 import com.healthtrace.report.domain.Report;
+import com.healthtrace.report.domain.ReportKind;
 import com.healthtrace.report.mapper.ObservationMapper;
 import com.healthtrace.report.mapper.OcrJobMapper;
 import com.healthtrace.report.mapper.PhotoMapper;
@@ -279,7 +280,8 @@ public class ReviewConfirmService {
 
     static DraftReport toDraftReport(Report r) {
         return new DraftReport(r.getId(), r.getProfileId(), r.getTitle(), r.getExaminationDate(),
-                r.getProcessingStatus(), r.getVersion());
+                r.getProcessingStatus(), r.getVersion(),
+                r.getReportKind() == null ? ReportKind.STRUCTURED : r.getReportKind(), r.getConclusionText());
     }
 
     private static PhotoView toPhotoView(Photo p) {

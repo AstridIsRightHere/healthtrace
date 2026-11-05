@@ -10,6 +10,8 @@ export type ProcessingStatus =
 export type ReportType = 'BLOOD_ROUTINE' | 'LIVER' | 'KIDNEY' | 'OTHER' | 'UNKNOWN'
 export type DuplicateDecision = 'ASK' | 'KEEP'
 export type PhotoVariant = 'preview' | 'original'
+/** 报告形态（V11 report_kind）：检验单走 OCR 核对；影像/其他直接归档并可填写结论 */
+export type ReportKind = 'STRUCTURED' | 'IMAGING' | 'UNSTRUCTURED'
 
 /** 对应后端 ReportView；时间为 UTC */
 export interface ReportView {
@@ -17,6 +19,8 @@ export interface ReportView {
   profileId: number
   title: string | null
   reportType: ReportType
+  reportKind: ReportKind
+  conclusionText: string | null
   examinationDate: string | null
   processingStatus: ProcessingStatus
   createdAt: string
@@ -42,7 +46,9 @@ export interface ReportListItem {
   id: number
   title: string | null
   reportType: ReportType
+  reportKind: ReportKind
   examinationDate: string | null
+  conclusionText: string | null
   processingStatus: ProcessingStatus
   createdAt: string
   photoCount: number
@@ -63,10 +69,23 @@ export interface ReportGroup {
   reports: ReportListItem[]
 }
 
+/** 对应后端 VisitViews.ReportVisitView */
+export interface ReportVisit {
+  id: number
+  visitDate: string
+  hospitalText: string
+  department: string | null
+  note: string | null
+}
+
 export interface CreateReportPayload {
   title?: string
   /** yyyy-MM-dd，可空 */
   examinationDate?: string
+  /** 缺省 STRUCTURED */
+  reportKind?: ReportKind
+  /** 仅影像/其他报告可填，≤4000 字 */
+  conclusionText?: string
 }
 
 export interface UploadPhotoPayload {
@@ -109,11 +128,21 @@ export const reportApi = {
       })
       .then((res) => res.data),
 
-  /** GET /api/v1/patient-profiles/{profileId}/reports?status=CONFIRMED：已确认报告，按检查日期倒序 */
-  listConfirmed: (profileId: number) =>
+  /** GET /api/v1/patient-profiles/{profileId}/reports?status=CONFIRMED[&kind=]：已确认报告，按检查日期倒序 */
+  listConfirmed: (profileId: number, kind?: ReportKind) =>
     api
-      .get<ListPage<ReportListItem>>(`/patient-profiles/${profileId}/reports`, { params: { status: 'CONFIRMED' } })
+      .get<ListPage<ReportListItem>>(`/patient-profiles/${profileId}/reports`, {
+        params: kind ? { status: 'CONFIRMED', kind } : { status: 'CONFIRMED' },
+      })
       .then((res) => res.data.items),
+
+  /** POST /api/v1/reports/{reportId}/completion：影像/其他报告上传完成后直接归档为已确认 */
+  completeImaging: (reportId: number) =>
+    api.post<ReportView>(`/reports/${reportId}/completion`).then((res) => res.data),
+
+  /** GET /api/v1/reports/{reportId}/visits：该报告关联的就诊 */
+  listVisits: (reportId: number) =>
+    api.get<ReportVisit[]>(`/reports/${reportId}/visits`).then((res) => res.data),
 
   /** GET /api/v1/patient-profiles/{profileId}/report-groups：已确认报告按种类聚合（报告对比入口） */
   listConfirmedGroups: (profileId: number) =>

@@ -93,9 +93,9 @@ class ReportQueryServiceTest {
 
     @Test
     void listReportsChecksOwnership() {
-        assertThatThrownBy(() -> service.listReports(ACCOUNT, 999L, ReportListFilter.DRAFT, null))
+        assertThatThrownBy(() -> service.listReports(ACCOUNT, 999L, ReportListFilter.DRAFT, null, null))
                 .satisfies(e -> assertThat(codeOf(e).code()).isEqualTo("HT-3001"));
-        verify(reportMapper, never()).findPendingByProfile(anyLong(), any());
+        verify(reportMapper, never()).findPendingByProfile(anyLong(), any(), any());
     }
 
     @Test
@@ -103,13 +103,13 @@ class ReportQueryServiceTest {
         com.healthtrace.report.domain.ReportSummary s = new com.healthtrace.report.domain.ReportSummary();
         s.setId(41L);
         s.setProcessingStatus(ProcessingStatus.PENDING_CONFIRMATION);
-        given(reportMapper.findPendingByProfile(PROFILE, null)).willReturn(List.of(s));
+        given(reportMapper.findPendingByProfile(PROFILE, null, null)).willReturn(List.of(s));
 
-        var page = service.listReports(ACCOUNT, PROFILE, ReportListFilter.DRAFT, null);
+        var page = service.listReports(ACCOUNT, PROFILE, ReportListFilter.DRAFT, null, null);
 
         assertThat(page.items()).extracting(i -> i.id()).containsExactly(41L);
         assertThat(page.total()).isEqualTo(1);
-        verify(reportMapper, never()).countPendingByProfile(anyLong());
+        verify(reportMapper, never()).countPendingByProfile(anyLong(), any());
     }
 
     @Test
@@ -118,10 +118,10 @@ class ReportQueryServiceTest {
         a.setId(42L);
         com.healthtrace.report.domain.ReportSummary b = new com.healthtrace.report.domain.ReportSummary();
         b.setId(41L);
-        given(reportMapper.findPendingByProfile(PROFILE, 2)).willReturn(List.of(a, b));
-        given(reportMapper.countPendingByProfile(PROFILE)).willReturn(5L);
+        given(reportMapper.findPendingByProfile(PROFILE, null, 2)).willReturn(List.of(a, b));
+        given(reportMapper.countPendingByProfile(PROFILE, null)).willReturn(5L);
 
-        var page = service.listReports(ACCOUNT, PROFILE, ReportListFilter.DRAFT, 2);
+        var page = service.listReports(ACCOUNT, PROFILE, ReportListFilter.DRAFT, null, 2);
 
         assertThat(page.items()).extracting(i -> i.id()).containsExactly(42L, 41L);
         assertThat(page.total()).isEqualTo(5);
@@ -131,12 +131,12 @@ class ReportQueryServiceTest {
     void listReportsWithShortPageSkipsCountQuery() {
         com.healthtrace.report.domain.ReportSummary a = new com.healthtrace.report.domain.ReportSummary();
         a.setId(42L);
-        given(reportMapper.findConfirmedByProfile(PROFILE, 10)).willReturn(List.of(a));
+        given(reportMapper.findConfirmedByProfile(PROFILE, null, 10)).willReturn(List.of(a));
 
-        var page = service.listReports(ACCOUNT, PROFILE, ReportListFilter.CONFIRMED, 10);
+        var page = service.listReports(ACCOUNT, PROFILE, ReportListFilter.CONFIRMED, null, 10);
 
         assertThat(page.total()).isEqualTo(1);
-        verify(reportMapper, never()).countConfirmedByProfile(anyLong());
+        verify(reportMapper, never()).countConfirmedByProfile(anyLong(), any());
     }
 
     @Test
@@ -146,23 +146,23 @@ class ReportQueryServiceTest {
         s.setTitle("甲功");
         s.setProcessingStatus(ProcessingStatus.CONFIRMED);
         s.setExaminationDate(LocalDate.of(2026, 10, 1));
-        given(reportMapper.findConfirmedByProfile(PROFILE, null)).willReturn(List.of(s));
+        given(reportMapper.findConfirmedByProfile(PROFILE, null, null)).willReturn(List.of(s));
 
-        var page = service.listReports(ACCOUNT, PROFILE, ReportListFilter.CONFIRMED, null);
+        var page = service.listReports(ACCOUNT, PROFILE, ReportListFilter.CONFIRMED, null, null);
 
         assertThat(page.items()).singleElement().satisfies(i -> {
             assertThat(i.id()).isEqualTo(31L);
             assertThat(i.processingStatus()).isEqualTo(ProcessingStatus.CONFIRMED);
         });
         assertThat(page.total()).isEqualTo(1);
-        verify(reportMapper, never()).findPendingByProfile(anyLong(), any());
+        verify(reportMapper, never()).findPendingByProfile(anyLong(), any(), any());
     }
 
     @Test
     void listConfirmedReportsChecksOwnership() {
-        assertThatThrownBy(() -> service.listReports(ACCOUNT, 999L, ReportListFilter.CONFIRMED, null))
+        assertThatThrownBy(() -> service.listReports(ACCOUNT, 999L, ReportListFilter.CONFIRMED, null, null))
                 .satisfies(e -> assertThat(codeOf(e).code()).isEqualTo("HT-3001"));
-        verify(reportMapper, never()).findConfirmedByProfile(anyLong(), any());
+        verify(reportMapper, never()).findConfirmedByProfile(anyLong(), any(), any());
     }
 
     @Test
@@ -177,7 +177,7 @@ class ReportQueryServiceTest {
         b.setTitle("血常规报告");
         b.setProcessingStatus(ProcessingStatus.CONFIRMED);
         b.setExaminationDate(LocalDate.of(2026, 5, 1));
-        given(reportMapper.findConfirmedByProfile(PROFILE, null)).willReturn(List.of(a, b));
+        given(reportMapper.findConfirmedByProfile(PROFILE, null, null)).willReturn(List.of(a, b));
 
         var groups = service.listConfirmedGroups(ACCOUNT, PROFILE);
 
@@ -192,7 +192,7 @@ class ReportQueryServiceTest {
     void listConfirmedGroupsChecksOwnership() {
         assertThatThrownBy(() -> service.listConfirmedGroups(ACCOUNT, 999L))
                 .satisfies(e -> assertThat(codeOf(e).code()).isEqualTo("HT-3001"));
-        verify(reportMapper, never()).findConfirmedByProfile(anyLong(), any());
+        verify(reportMapper, never()).findConfirmedByProfile(anyLong(), any(), any());
     }
 
     // ------------------------------------------------------------ access

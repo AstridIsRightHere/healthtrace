@@ -14,6 +14,8 @@ import com.healthtrace.visit.domain.LinkedReport;
 import com.healthtrace.visit.domain.Visit;
 import com.healthtrace.visit.mapper.VisitMapper;
 import com.healthtrace.visit.service.VisitViews.LinkedReportView;
+import com.healthtrace.visit.service.VisitViews.ReportVisitView;
+import com.healthtrace.visit.service.VisitViews.TimelineEntryView;
 import com.healthtrace.visit.service.VisitViews.VisitInput;
 import com.healthtrace.visit.service.VisitViews.VisitView;
 import org.springframework.stereotype.Service;
@@ -24,9 +26,11 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.time.temporal.ChronoUnit;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 /**
  * 就诊时间线（FR-013）。
@@ -70,6 +74,25 @@ public class VisitService {
 
     public VisitView get(long accountId, long visitId) {
         return toViews(List.of(requireOwnedVisit(accountId, visitId))).getFirst();
+    }
+
+    /**
+     * 合并时间线（任务三）：就诊记录与「未关联任何就诊的报告」按日期倒序排在同一条轴上，
+     * 让「某年某月某日去了某医院、做了什么检查、拿到什么报告」一屏可读。
+     * 已关联就诊的报告不单独成条，只挂在该就诊下，避免同一份报告出现两次。
+     * 日期为空的报告排在最后；limit 作用于合并后的条目数。
+     */
+    public List<TimelineEntryView> timeline(long accountId, long profileId, Integer limit) {
+        requireProfileAccess(accountId, profileId);
+        Stream<TimelineEntryView> visits = toViews(visitMapper.findByProfile(profileId, null)).stream()
+                .map(TimelineEntryView::ofVisit);
+        Stream<TimelineEntryView> reports = visitMapper.findUnlinkedReports(profileId, null).stream()
+                .map(VisitService::toView)
+                .map(TimelineEntryView::ofReport);
+        Stream<TimelineEntryView> merged = Stream.concat(visits, reports)
+                .sorted(Comparator.comparing(TimelineEntryView::date,
+                        Comparator.nullsLast(Comparator.reverseOrder())));
+        return (limit == null ? merged : merged.limit(limit)).toList();
     }
 
     @Transactional
@@ -125,6 +148,22 @@ public class VisitService {
         visitMapper.unlink(visitId, reportId);
         auditService.success(accountId, AuditAction.VISIT_UNLINK_REPORT, AuditService.token("visit", visitId));
         return get(accountId, visitId);
+    }
+
+    /**
+     * 报告详情反查其关联的所有就诊（任务三）。报告不存在、已彻底删除或不属于当前账号的档案统一 404。
+     * 只读，不写审计（与报告详情本身的读取一致）。
+     */
+    public List<ReportVisitView> listVisitsByReport(long accountId, long reportId) {
+        Report report = reportMapper.findById(reportId);
+        if (report == null) {
+            throw notFound();
+        }
+        requireProfileAccess(accountId, report.getProfileId());
+        return visitMapper.findVisitsByReport(reportId).stream()
+                .map(v -> new ReportVisitView(v.getId(), v.getVisitDate(), v.getHospitalText(), v.getDepartment(),
+                        v.getNote()))
+                .toList();
     }
 
     // ---------------------------------------------------------------- helpers
@@ -201,8 +240,8 @@ public class VisitService {
     }
 
     private static LinkedReportView toView(LinkedReport r) {
-        return new LinkedReportView(r.getReportId(), r.getTitle(), r.getReportType(), r.getExaminationDate(),
-                r.getProcessingStatus());
+        return new LinkedReportView(r.getReportId(), r.getTitle(), r.getReportType(), r.getReportKind(),
+                r.getExaminationDate(), r.getConclusionText(), r.getProcessingStatus());
     }
 
     private LocalDateTime now() {

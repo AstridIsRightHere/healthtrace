@@ -1,13 +1,23 @@
 import { api, type ListPage } from './index'
-import type { ProcessingStatus, ReportType } from './report'
+import type { ProcessingStatus, ReportKind, ReportType } from './report'
 
 /** 对应后端 VisitViews.LinkedReportView */
 export interface LinkedReport {
   id: number
   title: string | null
   reportType: ReportType
+  reportKind: ReportKind
   examinationDate: string | null
+  conclusionText: string | null
   processingStatus: ProcessingStatus
+}
+
+/** 对应后端 VisitViews.TimelineEntryView：就诊（含已关联报告）与未关联就诊的报告合并，日期倒序 */
+export interface TimelineEntry {
+  type: 'VISIT' | 'REPORT'
+  date: string | null
+  visit: Visit | null
+  report: LinkedReport | null
 }
 
 /** 对应后端 VisitViews.VisitView；visitDate 为 yyyy-MM-dd，时间戳为 UTC */
@@ -36,6 +46,12 @@ export const visitApi = {
   list: (profileId: number, limit?: number) =>
     api
       .get<ListPage<Visit>>(`/patient-profiles/${profileId}/visits`, { params: limit ? { limit } : {} })
+      .then((res) => res.data),
+
+  /** GET /api/v1/patient-profiles/{profileId}/timeline?limit=n：合并时间轴 */
+  timeline: (profileId: number, limit?: number) =>
+    api
+      .get<TimelineEntry[]>(`/patient-profiles/${profileId}/timeline`, { params: limit ? { limit } : {} })
       .then((res) => res.data),
 
   create: (profileId: number, payload: VisitPayload) =>

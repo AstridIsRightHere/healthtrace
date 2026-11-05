@@ -1,6 +1,7 @@
 package com.healthtrace.report.service;
 
 import com.healthtrace.report.domain.ProcessingStatus;
+import com.healthtrace.report.domain.ReportKind;
 import com.healthtrace.report.domain.ReportType;
 
 import java.io.InputStream;
@@ -20,7 +21,9 @@ public final class ReportViews {
             long profileId,
             String title,
             ReportType reportType,
+            ReportKind reportKind,
             LocalDate examinationDate,
+            String conclusionText,
             ProcessingStatus processingStatus,
             LocalDateTime createdAt) {
     }
@@ -58,7 +61,9 @@ public final class ReportViews {
             long id,
             String title,
             ReportType reportType,
+            ReportKind reportKind,
             LocalDate examinationDate,
+            String conclusionText,
             ProcessingStatus processingStatus,
             LocalDateTime createdAt,
             int photoCount,

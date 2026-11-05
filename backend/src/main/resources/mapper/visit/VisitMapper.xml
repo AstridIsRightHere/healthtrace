@@ -60,12 +60,41 @@
     </delete>
 
     <select id="findLinkedReports" resultType="com.healthtrace.visit.domain.LinkedReport">
-        SELECT vr.visit_id, r.id AS report_id, r.title, r.report_type, r.examination_date, r.processing_status
+        SELECT vr.visit_id, r.id AS report_id, r.title, r.report_type, r.report_kind, r.examination_date,
+               r.conclusion_text, r.processing_status
         FROM visit_report vr
         JOIN report r ON r.id = vr.report_id
         WHERE r.visibility_status = 'NORMAL'
           AND vr.visit_id IN
         <foreach collection="visitIds" item="vid" open="(" separator="," close=")">#{vid}</foreach>
         ORDER BY vr.visit_id, (r.examination_date IS NULL), r.examination_date DESC, r.id DESC
+    </select>
+
+    <!--
+      未挂到任何就诊的可见报告（合并时间线用）：visit_id 恒为 NULL，前端据此渲染“仅报告”节点。
+      NOT EXISTS 而非 LEFT JOIN：关联表一条命中即可短路，无需去重。
+    -->
+    <select id="findUnlinkedReports" resultType="com.healthtrace.visit.domain.LinkedReport">
+        SELECT NULL AS visit_id, r.id AS report_id, r.title, r.report_type, r.report_kind, r.examination_date,
+               r.conclusion_text, r.processing_status
+        FROM report r
+        WHERE r.profile_id = #{profileId}
+          AND r.visibility_status = 'NORMAL'
+          AND NOT EXISTS (SELECT 1 FROM visit_report vr WHERE vr.report_id = r.id)
+        ORDER BY (r.examination_date IS NULL), r.examination_date DESC, r.id DESC
+        <if test="limit != null">LIMIT #{limit}</if>
+    </select>
+
+    <!--
+      报告详情反查其关联的所有就诊记录（任务三）。按就诊日期倒序，与时间线一致。
+      列必须带 v. 前缀：visit 与 visit_report 都有 created_at，复用 visitColumns 会触发歧义列错误。
+    -->
+    <select id="findVisitsByReport" resultType="com.healthtrace.visit.domain.Visit">
+        SELECT v.id, v.profile_id, v.created_by, v.visit_date, v.hospital_id, v.hospital_text, v.department,
+               v.note, v.version, v.created_at, v.updated_at
+        FROM visit v
+        JOIN visit_report vr ON vr.visit_id = v.id
+        WHERE vr.report_id = #{reportId}
+        ORDER BY v.visit_date DESC, v.id DESC
     </select>
 </mapper>

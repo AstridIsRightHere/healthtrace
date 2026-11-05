@@ -9,6 +9,7 @@ import com.healthtrace.report.domain.DuplicateDecision;
 import com.healthtrace.report.domain.Photo;
 import com.healthtrace.report.domain.ProcessingStatus;
 import com.healthtrace.report.domain.Report;
+import com.healthtrace.report.domain.ReportKind;
 import com.healthtrace.report.domain.ReportPolicy;
 import com.healthtrace.report.domain.ReportType;
 import com.healthtrace.report.domain.StorageStatus;
@@ -74,8 +75,12 @@ public class ReportUploadService {
         this.clock = clock;
     }
 
-    /** 新建报告草稿（UPLOADING）。标题、检查日期可选，可在确认阶段再补。 */
-    public ReportView createReport(long accountId, long profileId, String title, LocalDate examinationDate) {
+    /**
+     * 新建报告草稿（UPLOADING）。标题、检查日期可选，可在确认阶段再补。
+     * reportKind 区分结构化检验报告与影像/非结构化报告；影像报告可直接携带结论文本。
+     */
+    public ReportView createReport(long accountId, long profileId, String title, LocalDate examinationDate,
+                                   String reportKindStr, String conclusionText) {
         if (profileMapper.findActiveByAccountAndProfile(accountId, profileId) == null) {
             throw new ApiException(ErrorCode.RESOURCE_NOT_FOUND);
         }
@@ -86,12 +91,21 @@ public class ReportUploadService {
             throw validation("examinationDate", "PastOrPresent", "检查日期不能晚于今天");
         }
 
+        ReportKind reportKind = parseKind(reportKindStr);
+        String normalizedConclusion = normalizeConclusion(conclusionText);
+        if (normalizedConclusion != null && reportKind == ReportKind.STRUCTURED) {
+            // 结论文本是影像/非结构化报告的主要内容；结构化检验报告的结论由指标核对产生
+            throw validation("conclusionText", "NotAllowed", "检验报告不支持直接填写结论，请改选影像或其他报告");
+        }
+
         LocalDateTime now = now();
         Report report = new Report();
         report.setProfileId(profileId);
         report.setCreatedBy(accountId);
         report.setTitle(normalizedTitle);
         report.setReportType(ReportType.UNKNOWN);
+        report.setReportKind(reportKind);
+        report.setConclusionText(normalizedConclusion);
         report.setExaminationDate(examinationDate);
         report.setProcessingStatus(ProcessingStatus.UPLOADING);
         report.setVisibilityStatus(VisibilityStatus.NORMAL);
@@ -100,6 +114,31 @@ public class ReportUploadService {
         report.setUpdatedAt(now);
         reportMapper.insert(report);
         auditService.success(accountId, AuditAction.REPORT_CREATE, AuditService.token("report", report.getId()));
+        return toView(report);
+    }
+
+    /**
+     * 影像/非结构化报告归档（任务二）：不走 OCR 与指标核对，上传至少一个文件后直接置为已确认。
+     * 他人报告 404；结构化报告或非上传中状态 409 HT-4002；无已完成文件 409 HT-4002。
+     */
+    public ReportView completeImaging(long accountId, long reportId) {
+        Report report = access.requireOwnedReport(accountId, reportId);
+        access.requireVerifiedEmail(accountId);
+        if (report.getReportKind() == ReportKind.STRUCTURED) {
+            throw new ApiException(ErrorCode.REPORT_STATE_CONFLICT, "检验报告需要核对指标后确认");
+        }
+        if (report.getProcessingStatus() != ProcessingStatus.UPLOADING) {
+            throw new ApiException(ErrorCode.REPORT_STATE_CONFLICT);
+        }
+        if (photoMapper.findCompleteByReport(reportId).isEmpty()) {
+            throw new ApiException(ErrorCode.REPORT_STATE_CONFLICT, "报告还没有上传完成的文件");
+        }
+        LocalDateTime now = now();
+        if (reportMapper.completeWithoutObservations(reportId, accountId, now) == 0) {
+            throw new ApiException(ErrorCode.REPORT_STATE_CONFLICT);
+        }
+        auditService.success(accountId, AuditAction.REPORT_CONFIRM, AuditService.token("report", reportId));
+        report.setProcessingStatus(ProcessingStatus.CONFIRMED);
         return toView(report);
     }
 
@@ -279,9 +318,33 @@ public class ReportUploadService {
                 List.of(new FieldErrorItem(field, reason, message)));
     }
 
+    /** 报告形态：缺省按结构化检验报告处理，非法取值按校验失败返回，不默默回退。 */
+    private static ReportKind parseKind(String raw) {
+        if (raw == null || raw.isBlank()) {
+            return ReportKind.STRUCTURED;
+        }
+        try {
+            return ReportKind.valueOf(raw.strip().toUpperCase(java.util.Locale.ROOT));
+        } catch (IllegalArgumentException e) {
+            throw validation("reportKind", "Enum", "报告形态只支持 STRUCTURED、IMAGING 或 UNSTRUCTURED");
+        }
+    }
+
+    private static String normalizeConclusion(String conclusionText) {
+        if (conclusionText == null || conclusionText.isBlank()) {
+            return null;
+        }
+        String trimmed = conclusionText.strip();
+        if (trimmed.codePointCount(0, trimmed.length()) > ReportPolicy.CONCLUSION_MAX_LENGTH) {
+            throw validation("conclusionText", "Size",
+                    "结论不能超过 " + ReportPolicy.CONCLUSION_MAX_LENGTH + " 个字符");
+        }
+        return trimmed;
+    }
+
     private static ReportView toView(Report r) {
-        return new ReportView(r.getId(), r.getProfileId(), r.getTitle(), r.getReportType(), r.getExaminationDate(),
-                r.getProcessingStatus(), r.getCreatedAt());
+        return new ReportView(r.getId(), r.getProfileId(), r.getTitle(), r.getReportType(), r.getReportKind(),
+                r.getExaminationDate(), r.getConclusionText(), r.getProcessingStatus(), r.getCreatedAt());
     }
 
     private static PhotoView toView(Photo p) {

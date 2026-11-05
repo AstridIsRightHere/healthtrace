@@ -126,7 +126,7 @@ class ReportUploadServiceTest {
 
     @Test
     void createReportStartsUploadingWithUnknownType() {
-        var view = service.createReport(ACCOUNT, PROFILE, "  血常规  ", LocalDate.of(2026, 10, 20));
+        var view = service.createReport(ACCOUNT, PROFILE, "  血常规  ", LocalDate.of(2026, 10, 20), null, null);
 
         ArgumentCaptor<Report> captor = ArgumentCaptor.forClass(Report.class);
         verify(reportMapper).insert(captor.capture());
@@ -140,7 +140,7 @@ class ReportUploadServiceTest {
 
     @Test
     void createReportOnOthersProfileIsNotFound() {
-        assertThatThrownBy(() -> service.createReport(ACCOUNT, 999L, null, null))
+        assertThatThrownBy(() -> service.createReport(ACCOUNT, 999L, null, null, null, null))
                 .satisfies(e -> assertThat(codeOf(e).code()).isEqualTo("HT-3001"));
         verify(reportMapper, never()).insert(any());
     }
@@ -149,21 +149,114 @@ class ReportUploadServiceTest {
     void createReportRequiresVerifiedEmail() {
         given(accountMapper.findById(ACCOUNT)).willReturn(account(false));
 
-        assertThatThrownBy(() -> service.createReport(ACCOUNT, PROFILE, null, null))
+        assertThatThrownBy(() -> service.createReport(ACCOUNT, PROFILE, null, null, null, null))
                 .satisfies(e -> assertThat(codeOf(e)).isEqualTo(ErrorCode.EMAIL_NOT_VERIFIED));
     }
 
     @Test
     void createReportRejectsFutureExaminationDate() {
-        assertThatThrownBy(() -> service.createReport(ACCOUNT, PROFILE, null, LocalDate.of(2026, 10, 28)))
+        assertThatThrownBy(() -> service.createReport(ACCOUNT, PROFILE, null, LocalDate.of(2026, 10, 28), null, null))
                 .satisfies(e -> assertThat(codeOf(e)).isEqualTo(ErrorCode.VALIDATION_FAILED));
     }
 
     @Test
     void createReportRejectsOverlongTitle() {
         String title = "报".repeat(ReportPolicy.TITLE_MAX_LENGTH + 1);
-        assertThatThrownBy(() -> service.createReport(ACCOUNT, PROFILE, title, null))
+        assertThatThrownBy(() -> service.createReport(ACCOUNT, PROFILE, title, null, null, null))
                 .satisfies(e -> assertThat(codeOf(e)).isEqualTo(ErrorCode.VALIDATION_FAILED));
+    }
+
+    @Test
+    void createReportDefaultsToStructuredKind() {
+        service.createReport(ACCOUNT, PROFILE, null, null, null, null);
+
+        ArgumentCaptor<Report> captor = ArgumentCaptor.forClass(Report.class);
+        verify(reportMapper).insert(captor.capture());
+        assertThat(captor.getValue().getReportKind()).isEqualTo(com.healthtrace.report.domain.ReportKind.STRUCTURED);
+        assertThat(captor.getValue().getConclusionText()).isNull();
+    }
+
+    @Test
+    void createImagingReportKeepsTrimmedConclusion() {
+        var view = service.createReport(ACCOUNT, PROFILE, "腹部超声", null, "imaging", "  肝胆胰脾未见明显异常  ");
+
+        ArgumentCaptor<Report> captor = ArgumentCaptor.forClass(Report.class);
+        verify(reportMapper).insert(captor.capture());
+        assertThat(captor.getValue().getReportKind()).isEqualTo(com.healthtrace.report.domain.ReportKind.IMAGING);
+        assertThat(captor.getValue().getConclusionText()).isEqualTo("肝胆胰脾未见明显异常");
+        assertThat(view.reportKind()).isEqualTo(com.healthtrace.report.domain.ReportKind.IMAGING);
+        assertThat(view.conclusionText()).isEqualTo("肝胆胰脾未见明显异常");
+    }
+
+    @Test
+    void createReportRejectsUnknownKind() {
+        assertThatThrownBy(() -> service.createReport(ACCOUNT, PROFILE, null, null, "XRAY", null))
+                .satisfies(e -> assertThat(codeOf(e)).isEqualTo(ErrorCode.VALIDATION_FAILED));
+        verify(reportMapper, never()).insert(any());
+    }
+
+    @Test
+    void createStructuredReportRejectsConclusion() {
+        assertThatThrownBy(() -> service.createReport(ACCOUNT, PROFILE, null, null, "STRUCTURED", "正常"))
+                .satisfies(e -> assertThat(codeOf(e)).isEqualTo(ErrorCode.VALIDATION_FAILED));
+        verify(reportMapper, never()).insert(any());
+    }
+
+    @Test
+    void createImagingReportRejectsOverlongConclusion() {
+        String text = "影".repeat(ReportPolicy.CONCLUSION_MAX_LENGTH + 1);
+        assertThatThrownBy(() -> service.createReport(ACCOUNT, PROFILE, null, null, "IMAGING", text))
+                .satisfies(e -> assertThat(codeOf(e)).isEqualTo(ErrorCode.VALIDATION_FAILED));
+    }
+
+    // ------------------------------------------------------------ completeImaging
+
+    private Report imagingReport(ProcessingStatus status) {
+        Report r = report(status);
+        r.setReportKind(com.healthtrace.report.domain.ReportKind.IMAGING);
+        return r;
+    }
+
+    @Test
+    void completeImagingConfirmsWhenFileUploaded() {
+        given(reportMapper.findById(REPORT)).willReturn(imagingReport(ProcessingStatus.UPLOADING));
+        given(photoMapper.findCompleteByReport(REPORT)).willReturn(List.of(new Photo()));
+        given(reportMapper.completeWithoutObservations(eq(REPORT), eq(ACCOUNT), any())).willReturn(1);
+
+        var view = service.completeImaging(ACCOUNT, REPORT);
+
+        assertThat(view.processingStatus()).isEqualTo(ProcessingStatus.CONFIRMED);
+    }
+
+    @Test
+    void completeImagingRejectsStructuredReport() {
+        Report structured = report(ProcessingStatus.UPLOADING);
+        structured.setReportKind(com.healthtrace.report.domain.ReportKind.STRUCTURED);
+        given(reportMapper.findById(REPORT)).willReturn(structured);
+
+        assertThatThrownBy(() -> service.completeImaging(ACCOUNT, REPORT))
+                .satisfies(e -> assertThat(codeOf(e)).isEqualTo(ErrorCode.REPORT_STATE_CONFLICT));
+        verify(reportMapper, never()).completeWithoutObservations(anyLong(), anyLong(), any());
+    }
+
+    @Test
+    void completeImagingRejectsWithoutFiles() {
+        given(reportMapper.findById(REPORT)).willReturn(imagingReport(ProcessingStatus.UPLOADING));
+        given(photoMapper.findCompleteByReport(REPORT)).willReturn(List.of());
+
+        assertThatThrownBy(() -> service.completeImaging(ACCOUNT, REPORT))
+                .satisfies(e -> assertThat(codeOf(e)).isEqualTo(ErrorCode.REPORT_STATE_CONFLICT));
+    }
+
+    @Test
+    void completeImagingHidesForeignReport() {
+        Report foreign = imagingReport(ProcessingStatus.UPLOADING);
+        foreign.setProfileId(999L);
+        given(reportMapper.findById(REPORT)).willReturn(foreign);
+        given(profileMapper.findActiveByAccountAndProfile(ACCOUNT, 999L)).willReturn(null);
+
+        assertThatThrownBy(() -> service.completeImaging(ACCOUNT, REPORT))
+                .satisfies(e -> assertThat(codeOf(e)).isEqualTo(ErrorCode.RESOURCE_NOT_FOUND));
     }
 
     // ------------------------------------------------------------ upload

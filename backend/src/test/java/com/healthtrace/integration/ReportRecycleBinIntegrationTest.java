@@ -102,11 +102,11 @@ class ReportRecycleBinIntegrationTest {
 
         assertThat(ids(ReportListFilter.CONFIRMED, account, profile)).containsExactly(kept);
         assertThat(ids(ReportListFilter.DRAFT, account, profile)).isEmpty();
-        var removed = queryService.listReports(account, profile, ReportListFilter.REMOVED, null);
+        var removed = queryService.listReports(account, profile, ReportListFilter.REMOVED, null, null);
         assertThat(removed.total()).isEqualTo(2);
         assertThat(removed.items()).extracting(ReportListItem::id).containsExactlyInAnyOrder(confirmed, draft);
         assertThat(removed.items()).allSatisfy(i -> assertThat(i.removedAt()).isNotNull());
-        assertThat(queryService.listReports(account, profile, ReportListFilter.REMOVED, 1).items()).hasSize(1);
+        assertThat(queryService.listReports(account, profile, ReportListFilter.REMOVED, null, 1).items()).hasSize(1);
         assertThat(trendMapper.findFormalByProfile(profile))
                 .extracting(TrendObservation::getReportId).containsOnly(kept);
         assertThat(jdbc.queryForObject("SELECT version FROM report WHERE id = ?", Long.class, confirmed))
@@ -171,7 +171,7 @@ class ReportRecycleBinIntegrationTest {
     // ---- 辅助 ----
 
     private java.util.List<Long> ids(ReportListFilter filter, long account, long profile) {
-        return queryService.listReports(account, profile, filter, null).items().stream()
+        return queryService.listReports(account, profile, filter, null, null).items().stream()
                 .map(ReportListItem::id).toList();
     }
 

@@ -10,6 +10,7 @@ import com.healthtrace.common.web.ErrorResponseWriter;
 import com.healthtrace.common.web.ListPage;
 import com.healthtrace.report.domain.DuplicateDecision;
 import com.healthtrace.report.domain.ProcessingStatus;
+import com.healthtrace.report.domain.ReportKind;
 import com.healthtrace.report.domain.ReportListFilter;
 import com.healthtrace.report.domain.ReportType;
 import com.healthtrace.common.web.EnumConverterConfig;
@@ -95,8 +96,9 @@ class ReportWebTest {
     }
 
     private static ReportView reportView() {
-        return new ReportView(21L, 11L, "血常规", ReportType.UNKNOWN, LocalDate.of(2026, 10, 20),
-                ProcessingStatus.UPLOADING, LocalDateTime.of(2026, 10, 25, 10, 0));
+        return new ReportView(21L, 11L, "血常规", ReportType.UNKNOWN, ReportKind.STRUCTURED,
+                LocalDate.of(2026, 10, 20), null, ProcessingStatus.UPLOADING,
+                LocalDateTime.of(2026, 10, 25, 10, 0));
     }
 
     // ------------------------------------------------------------ create report
@@ -109,7 +111,7 @@ class ReportWebTest {
                         .contentType(JSON).content("{}"))
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.code").value("HT-2001"));
-        verify(uploadService, never()).createReport(anyLong(), anyLong(), any(), any());
+        verify(uploadService, never()).createReport(anyLong(), anyLong(), any(), any(), any(), any());
     }
 
     @Test
@@ -117,12 +119,13 @@ class ReportWebTest {
         mvc.perform(post("/api/v1/patient-profiles/11/reports").with(account(7L)).contentType(JSON).content("{}"))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.code").value("HT-2005"));
-        verify(uploadService, never()).createReport(anyLong(), anyLong(), any(), any());
+        verify(uploadService, never()).createReport(anyLong(), anyLong(), any(), any(), any(), any());
     }
 
     @Test
     void createReportReturns201() throws Exception {
-        given(uploadService.createReport(7L, 11L, "血常规", LocalDate.of(2026, 10, 20))).willReturn(reportView());
+        given(uploadService.createReport(7L, 11L, "血常规", LocalDate.of(2026, 10, 20), null, null))
+                .willReturn(reportView());
         MockHttpSession session = new MockHttpSession();
         String token = csrfToken(session);
         mvc.perform(post("/api/v1/patient-profiles/11/reports").with(account(7L)).session(session)
@@ -135,7 +138,7 @@ class ReportWebTest {
 
     @Test
     void createReportOnOthersProfileIs404() throws Exception {
-        given(uploadService.createReport(eq(7L), eq(99L), any(), any()))
+        given(uploadService.createReport(eq(7L), eq(99L), any(), any(), any(), any()))
                 .willThrow(new ApiException(ErrorCode.RESOURCE_NOT_FOUND));
         MockHttpSession session = new MockHttpSession();
         String token = csrfToken(session);
@@ -147,7 +150,7 @@ class ReportWebTest {
 
     @Test
     void createReportByUnverifiedAccountIs403() throws Exception {
-        given(uploadService.createReport(eq(7L), eq(11L), any(), any()))
+        given(uploadService.createReport(eq(7L), eq(11L), any(), any(), any(), any()))
                 .willThrow(new ApiException(ErrorCode.EMAIL_NOT_VERIFIED));
         MockHttpSession session = new MockHttpSession();
         String token = csrfToken(session);
@@ -278,7 +281,7 @@ class ReportWebTest {
 
     @Test
     void listDraftDelegatesWithFilter() throws Exception {
-        given(queryService.listReports(7L, 11L, ReportListFilter.DRAFT, null))
+        given(queryService.listReports(7L, 11L, ReportListFilter.DRAFT, null, null))
                 .willReturn(new ListPage<>(List.of(), 0));
         mvc.perform(get("/api/v1/patient-profiles/11/reports").param("status", "DRAFT").with(account(7L)))
                 .andExpect(status().isOk())
@@ -287,7 +290,7 @@ class ReportWebTest {
 
     @Test
     void listDraftPassesLimitAndReturnsTotal() throws Exception {
-        given(queryService.listReports(7L, 11L, ReportListFilter.DRAFT, 5))
+        given(queryService.listReports(7L, 11L, ReportListFilter.DRAFT, null, 5))
                 .willReturn(new ListPage<>(List.of(), 12));
         mvc.perform(get("/api/v1/patient-profiles/11/reports").param("status", "DRAFT").param("limit", "5")
                         .with(account(7L)))
@@ -303,14 +306,15 @@ class ReportWebTest {
                     .andExpect(jsonPath("$.code").value("HT-1001"))
                     .andExpect(jsonPath("$.fieldErrors[0].field").value("limit"));
         }
-        verify(queryService, never()).listReports(anyLong(), anyLong(), any(), any());
+        verify(queryService, never()).listReports(anyLong(), anyLong(), any(), any(), any());
     }
 
     @Test
     void listConfirmedDelegatesWithFilter() throws Exception {
-        given(queryService.listReports(7L, 11L, ReportListFilter.CONFIRMED, null)).willReturn(new ListPage<>(List.of(
+        given(queryService.listReports(7L, 11L, ReportListFilter.CONFIRMED, null, null))
+                .willReturn(new ListPage<>(List.of(
                 new com.healthtrace.report.service.ReportViews.ReportListItem(31L, "甲功", ReportType.UNKNOWN,
-                        LocalDate.of(2026, 10, 1), ProcessingStatus.CONFIRMED,
+                        ReportKind.STRUCTURED, LocalDate.of(2026, 10, 1), null, ProcessingStatus.CONFIRMED,
                         LocalDateTime.of(2026, 10, 2, 9, 0), 1, 5L, true, null, null)), 1));
         mvc.perform(get("/api/v1/patient-profiles/11/reports").param("status", "confirmed").with(account(7L)))
                 .andExpect(status().isOk())
@@ -322,7 +326,7 @@ class ReportWebTest {
 
     @Test
     void listConfirmedOnOthersProfileIs404() throws Exception {
-        given(queryService.listReports(7L, 99L, ReportListFilter.CONFIRMED, null))
+        given(queryService.listReports(7L, 99L, ReportListFilter.CONFIRMED, null, null))
                 .willThrow(new ApiException(ErrorCode.RESOURCE_NOT_FOUND));
         mvc.perform(get("/api/v1/patient-profiles/99/reports").param("status", "CONFIRMED").with(account(7L)))
                 .andExpect(status().isNotFound())
@@ -334,13 +338,13 @@ class ReportWebTest {
         mvc.perform(get("/api/v1/patient-profiles/11/reports").param("status", "ALL").with(account(7L)))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("HT-1001"));
-        verify(queryService, never()).listReports(anyLong(), anyLong(), any(), any());
+        verify(queryService, never()).listReports(anyLong(), anyLong(), any(), any(), any());
     }
 
     @Test
     void listReportGroupsReturnsGroups() throws Exception {
         var item = new com.healthtrace.report.service.ReportViews.ReportListItem(31L, "血常规", ReportType.UNKNOWN,
-                LocalDate.of(2026, 10, 1), ProcessingStatus.CONFIRMED,
+                ReportKind.STRUCTURED, LocalDate.of(2026, 10, 1), null, ProcessingStatus.CONFIRMED,
                 LocalDateTime.of(2026, 10, 2, 9, 0), 1, 5L, true, null, null);
         given(queryService.listConfirmedGroups(7L, 11L)).willReturn(List.of(
                 new com.healthtrace.report.service.ReportViews.ReportGroup("血常规", "血常规", 1,

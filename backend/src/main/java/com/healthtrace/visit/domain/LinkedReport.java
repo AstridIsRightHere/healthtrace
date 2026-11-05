@@ -1,6 +1,7 @@
 package com.healthtrace.visit.domain;
 
 import com.healthtrace.report.domain.ProcessingStatus;
+import com.healthtrace.report.domain.ReportKind;
 import com.healthtrace.report.domain.ReportType;
 
 import java.time.LocalDate;
@@ -12,8 +13,26 @@ public class LinkedReport {
     private Long reportId;
     private String title;
     private ReportType reportType;
+    private ReportKind reportKind;
     private LocalDate examinationDate;
+    private String conclusionText;
     private ProcessingStatus processingStatus;
+
+    public ReportKind getReportKind() {
+        return reportKind;
+    }
+
+    public void setReportKind(ReportKind reportKind) {
+        this.reportKind = reportKind;
+    }
+
+    public String getConclusionText() {
+        return conclusionText;
+    }
+
+    public void setConclusionText(String conclusionText) {
+        this.conclusionText = conclusionText;
+    }
 
     public Long getVisitId() {
         return visitId;

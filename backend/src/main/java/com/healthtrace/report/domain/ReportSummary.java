@@ -9,7 +9,9 @@ public class ReportSummary {
     private Long id;
     private String title;
     private ReportType reportType;
+    private ReportKind reportKind;
     private LocalDate examinationDate;
+    private String conclusionText;
     private ProcessingStatus processingStatus;
     private LocalDateTime createdAt;
     private int photoCount;
@@ -44,12 +46,28 @@ public class ReportSummary {
         this.reportType = reportType;
     }
 
+    public ReportKind getReportKind() {
+        return reportKind;
+    }
+
+    public void setReportKind(ReportKind reportKind) {
+        this.reportKind = reportKind;
+    }
+
     public LocalDate getExaminationDate() {
         return examinationDate;
     }
 
     public void setExaminationDate(LocalDate examinationDate) {
         this.examinationDate = examinationDate;
+    }
+
+    public String getConclusionText() {
+        return conclusionText;
+    }
+
+    public void setConclusionText(String conclusionText) {
+        this.conclusionText = conclusionText;
     }
 
     public ProcessingStatus getProcessingStatus() {

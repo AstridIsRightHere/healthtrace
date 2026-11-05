@@ -1,5 +1,5 @@
 import { api } from './index'
-import type { PhotoView, ProcessingStatus } from './report'
+import type { PhotoView, ProcessingStatus, ReportKind } from './report'
 
 /** OCR 任务状态（docs/19 OCR_JOB.status） */
 export type OcrJobStatus = 'PENDING' | 'RUNNING' | 'SUCCEEDED' | 'FAILED' | 'CANCELLED'
@@ -25,6 +25,8 @@ export interface DraftReport {
   examinationDate: string | null
   processingStatus: ProcessingStatus
   version: number
+  reportKind: ReportKind
+  conclusionText: string | null
 }
 
 export interface ObservationView {

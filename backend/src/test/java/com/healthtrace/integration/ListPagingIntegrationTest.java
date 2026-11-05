@@ -102,11 +102,11 @@ class ListPagingIntegrationTest {
         seedReport(profile, "PENDING_CONFIRMATION", "LIST_REMOVED", null, NOW);
         seedReport(seedProfile(), "PENDING_CONFIRMATION", "NORMAL", null, NOW);
 
-        assertThat(reportMapper.findPendingByProfile(profile, 2))
+        assertThat(reportMapper.findPendingByProfile(profile, null, 2))
                 .extracting(ReportSummary::getId).containsExactly(r3, r2);
-        assertThat(reportMapper.findPendingByProfile(profile, null))
+        assertThat(reportMapper.findPendingByProfile(profile, null, null))
                 .extracting(ReportSummary::getId).containsExactly(r3, r2, r1);
-        assertThat(reportMapper.countPendingByProfile(profile)).isEqualTo(3);
+        assertThat(reportMapper.countPendingByProfile(profile, null)).isEqualTo(3);
     }
 
     @Test
@@ -118,11 +118,11 @@ class ListPagingIntegrationTest {
         seedReport(profile, "PENDING_CONFIRMATION", "NORMAL", null, NOW);
         seedReport(profile, "CONFIRMED", "DELETING", LocalDate.of(2026, 2, 2), NOW);
 
-        assertThat(reportMapper.findConfirmedByProfile(profile, 1))
+        assertThat(reportMapper.findConfirmedByProfile(profile, null, 1))
                 .extracting(ReportSummary::getId).containsExactly(sameDay);
-        assertThat(reportMapper.findConfirmedByProfile(profile, null))
+        assertThat(reportMapper.findConfirmedByProfile(profile, null, null))
                 .extracting(ReportSummary::getId).containsExactly(sameDay, newer, older);
-        assertThat(reportMapper.countConfirmedByProfile(profile)).isEqualTo(3);
+        assertThat(reportMapper.countConfirmedByProfile(profile, null)).isEqualTo(3);
     }
 
     @Test

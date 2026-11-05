@@ -13,6 +13,8 @@ public final class ReportPolicy {
     public static final long MAX_BYTES_PER_ACCOUNT = 1024L * 1024 * 1024;
     /** 报告标题上限（docs/19 REPORT.title VARCHAR(120)），按码点计。 */
     public static final int TITLE_MAX_LENGTH = 120;
+    /** 影像/非结构化报告结论文本上限（docs/19 REPORT.conclusion_text TEXT），按码点计。 */
+    public static final int CONCLUSION_MAX_LENGTH = 4000;
     /** 对象存储直链有效期（仅支持签名 URL 的实现使用）。 */
     public static final Duration ACCESS_URL_TTL = Duration.ofMinutes(5);
 

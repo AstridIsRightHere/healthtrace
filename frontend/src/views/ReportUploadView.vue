@@ -1,9 +1,9 @@
 <script setup lang="ts">
 // 上传报告（FR-004/FR-005）：先建草稿，再一文件一请求并发上传（并发 2），单文件可重试
 import { computed, onBeforeUnmount, reactive, ref } from 'vue'
-import { RouterLink, useRouter } from 'vue-router'
+import { RouterLink, useRoute, useRouter } from 'vue-router'
 import { errorMessage, fieldErrors } from '../api'
-import { reportApi } from '../api/report'
+import { reportApi, type ReportKind } from '../api/report'
 import { ocrApi } from '../api/ocr'
 import { useAuthStore } from '../stores/auth'
 import { useProfileStore } from '../stores/profile'
@@ -30,6 +30,20 @@ const creating = ref(false)
 const message = ref('')
 const titleError = ref('')
 const dateError = ref('')
+const conclusionError = ref('')
+const CONCLUSION_MAX = 4000
+const route = useRoute()
+const initialKind = typeof route.query.kind === 'string' ? route.query.kind.toUpperCase() : ''
+const reportKind = ref<ReportKind>(
+  initialKind === 'IMAGING' || initialKind === 'UNSTRUCTURED' ? initialKind : 'STRUCTURED',
+)
+const conclusionText = ref('')
+const isStructured = computed(() => reportKind.value === 'STRUCTURED')
+const KIND_OPTIONS: { value: ReportKind; label: string; hint: string }[] = [
+  { value: 'STRUCTURED', label: '检验报告', hint: '血常规、肝功能等带数值的报告，可识别指标' },
+  { value: 'IMAGING', label: '影像报告', hint: '超声、CT、X 光、核磁等，保存原件与结论' },
+  { value: 'UNSTRUCTURED', label: '其他报告', hint: '病历、诊断证明等，仅保存原件与说明' },
+]
 let keySeq = 0
 
 const today = new Date().toLocaleDateString('sv-SE') // yyyy-MM-dd（本地日期）
@@ -126,6 +140,11 @@ async function onStart() {
   message.value = ''
   titleError.value = ''
   dateError.value = ''
+  conclusionError.value = ''
+  if (!isStructured.value && Array.from(conclusionText.value.trim()).length > CONCLUSION_MAX) {
+    conclusionError.value = `结论不能超过 ${CONCLUSION_MAX} 个字符`
+    return
+  }
   creating.value = true
   try {
     const profileId = profile.profile?.id
@@ -133,12 +152,15 @@ async function onStart() {
     const report = await reportApi.create(profileId, {
       title: title.value.trim() || undefined,
       examinationDate: examinationDate.value || undefined,
+      reportKind: reportKind.value,
+      conclusionText: isStructured.value ? undefined : conclusionText.value.trim() || undefined,
     })
     reportId.value = report.id
   } catch (error) {
     const errors = fieldErrors(error)
     titleError.value = errors.title ?? ''
     dateError.value = errors.examinationDate ?? ''
+    conclusionError.value = errors.conclusionText ?? ''
     message.value = errorMessage(error, '创建报告失败，请稍后重试')
     return
   } finally {
@@ -186,6 +208,21 @@ async function onProceed(mode: 'ocr' | 'manual') {
   }
 }
 
+/** 影像/其他报告：不走 OCR 与指标核对，上传完成后直接归档（任务二） */
+async function onArchive() {
+  if (reportId.value === null || proceeding.value) return
+  proceeding.value = true
+  message.value = ''
+  try {
+    await reportApi.completeImaging(reportId.value)
+    await router.push({ name: 'records', query: { kind: reportKind.value } })
+  } catch (error) {
+    message.value = errorMessage(error, '归档失败，请稍后重试')
+  } finally {
+    proceeding.value = false
+  }
+}
+
 onBeforeUnmount(() => {
   for (const item of items.value) if (item.thumbUrl) URL.revokeObjectURL(item.thumbUrl)
 })
@@ -207,6 +244,29 @@ onBeforeUnmount(() => {
       </p>
 
       <form v-else @submit.prevent="onStart">
+        <fieldset class="field kind-picker" data-testid="upload-kind">
+          <legend>报告类型</legend>
+          <label
+            v-for="option in KIND_OPTIONS"
+            :key="option.value"
+            class="kind-option"
+            :class="{ 'kind-option-active': reportKind === option.value }"
+          >
+            <input
+              v-model="reportKind"
+              type="radio"
+              name="report-kind"
+              :value="option.value"
+              :disabled="started"
+              :data-testid="`upload-kind-${option.value}`"
+            />
+            <span class="kind-option-text">
+              <strong>{{ option.label }}</strong>
+              <span class="field-hint">{{ option.hint }}</span>
+            </span>
+          </label>
+        </fieldset>
+
         <div class="field">
           <label for="report-title">报告标题（可选）</label>
           <input
@@ -236,6 +296,21 @@ onBeforeUnmount(() => {
           <p v-if="dateError" id="report-date-error" class="field-error">{{ dateError }}</p>
         </div>
 
+        <div v-if="!isStructured" class="field">
+          <label for="report-conclusion">{{ reportKind === 'IMAGING' ? '检查结论 / 印象（可选）' : '说明（可选）' }}</label>
+          <textarea
+            id="report-conclusion"
+            v-model="conclusionText"
+            rows="4"
+            data-testid="upload-conclusion"
+            placeholder="例如：肝胆胰脾未见明显异常"
+            :disabled="started"
+            :aria-invalid="conclusionError ? 'true' : undefined"
+            :aria-describedby="conclusionError ? 'report-conclusion-error' : undefined"
+          ></textarea>
+          <p v-if="conclusionError" id="report-conclusion-error" class="field-error">{{ conclusionError }}</p>
+        </div>
+
         <PhotoPicker v-if="!started" :remaining="remaining" :disabled="creating" @pick="onPick" />
 
         <PhotoQueueList
@@ -248,9 +323,22 @@ onBeforeUnmount(() => {
         />
 
         <p v-if="message" class="notice notice-error" role="alert">{{ message }}</p>
-        <p v-if="allSettled" class="notice notice-success" role="status">上传完成，报告已加入首页待处理列表。</p>
+        <p v-if="allSettled && isStructured" class="notice notice-success" role="status">上传完成，报告已加入首页待处理列表。</p>
 
-        <div v-if="allSettled && uploadedCount > 0" class="ocr-next">
+        <div v-if="allSettled && uploadedCount > 0 && !isStructured" class="ocr-next">
+          <p class="notice notice-success" role="status">上传完成，确认无误后归档到档案。</p>
+          <button
+            class="btn-primary"
+            type="button"
+            data-testid="upload-archive"
+            :disabled="proceeding"
+            @click="onArchive"
+          >
+            {{ proceeding ? '处理中…' : '完成归档' }}
+          </button>
+        </div>
+
+        <div v-if="allSettled && uploadedCount > 0 && isStructured" class="ocr-next">
           <label class="declaration">
             <input v-model="ocrConsent" type="checkbox" :disabled="proceeding" />
             <span>我同意将本报告的图片发送至第三方 OCR 服务（百度医疗检验报告单识别）进行识别，识别结果需逐项核对后才会保存。</span>

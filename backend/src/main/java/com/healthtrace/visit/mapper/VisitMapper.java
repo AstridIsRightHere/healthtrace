@@ -40,4 +40,10 @@ public interface VisitMapper {
 
     /** 批量读取关联报告（只含 visibility=NORMAL），按检查日期倒序。 */
     List<LinkedReport> findLinkedReports(@Param("visitIds") Collection<Long> visitIds);
+
+    /** 未关联任何就诊的可见报告（合并时间线用），visitId 恒为 null，按检查日期倒序。limit 为空表示全部。 */
+    List<LinkedReport> findUnlinkedReports(@Param("profileId") long profileId, @Param("limit") Integer limit);
+
+    /** 反向查询：某报告关联的全部就诊，按就诊日倒序、id 倒序（FR-013 报告详情展示所属就诊）。 */
+    List<Visit> findVisitsByReport(@Param("reportId") long reportId);
 }

@@ -16,7 +16,9 @@ const report = (id: number, examinationDate: string | null): ReportListItem => (
   id,
   title: `报告${id}`,
   reportType: 'OTHER',
+  reportKind: 'STRUCTURED',
   examinationDate,
+  conclusionText: null,
   processingStatus: 'CONFIRMED',
   createdAt: '2026-10-01T00:00:00',
   photoCount: 1,
@@ -86,7 +88,7 @@ describe('validateVisitForm', () => {
 describe('linkableReports', () => {
   it('excludes linked, dedupes and sorts by date desc with nulls last', () => {
     const all = [report(1, '2026-01-01'), report(2, null), report(3, '2026-05-01'), report(4, '2026-03-01'), report(3, '2026-05-01')]
-    const result = linkableReports(all, { reports: [{ id: 4, title: null, reportType: 'OTHER', examinationDate: null, processingStatus: 'CONFIRMED' }] })
+    const result = linkableReports(all, { reports: [{ id: 4, title: null, reportType: 'OTHER', reportKind: 'STRUCTURED', examinationDate: null, conclusionText: null, processingStatus: 'CONFIRMED' }] })
     expect(result.map((r) => r.id)).toEqual([3, 1, 2])
   })
 })

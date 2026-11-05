@@ -6,6 +6,8 @@ import com.healthtrace.common.web.ErrorCode;
 import com.healthtrace.common.web.FieldErrorItem;
 import com.healthtrace.common.web.ListPage;
 import com.healthtrace.visit.service.VisitService;
+import com.healthtrace.visit.service.VisitViews.ReportVisitView;
+import com.healthtrace.visit.service.VisitViews.TimelineEntryView;
 import com.healthtrace.visit.service.VisitViews.VisitInput;
 import com.healthtrace.visit.service.VisitViews.VisitView;
 import jakarta.validation.Valid;
@@ -58,6 +60,14 @@ public class VisitController {
         return visitService.list(principal.accountId(), profileId, ListPage.parseLimit(limit));
     }
 
+    /** 合并时间线（任务三）：就诊与未关联就诊的报告按日期倒序排在同一条轴上。 */
+    @GetMapping("/api/v1/patient-profiles/{profileId}/timeline")
+    public List<TimelineEntryView> timeline(@AuthenticationPrincipal AccountPrincipal principal,
+                                            @PathVariable long profileId,
+                                            @RequestParam(required = false) String limit) {
+        return visitService.timeline(principal.accountId(), profileId, ListPage.parseLimit(limit));
+    }
+
     @PostMapping("/api/v1/patient-profiles/{profileId}/visits")
     @ResponseStatus(HttpStatus.CREATED)
     public VisitView create(@AuthenticationPrincipal AccountPrincipal principal,
@@ -98,5 +108,12 @@ public class VisitController {
     public VisitView unlink(@AuthenticationPrincipal AccountPrincipal principal,
                             @PathVariable long visitId, @PathVariable long reportId) {
         return visitService.unlinkReport(principal.accountId(), visitId, reportId);
+    }
+
+    /** 报告详情反查其关联的所有就诊记录（任务三）；报告不存在或无权访问均 404 HT-3001。 */
+    @GetMapping("/api/v1/reports/{reportId}/visits")
+    public List<ReportVisitView> listByReport(@AuthenticationPrincipal AccountPrincipal principal,
+                                              @PathVariable long reportId) {
+        return visitService.listVisitsByReport(principal.accountId(), reportId);
     }
 }

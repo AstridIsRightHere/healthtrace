@@ -11,7 +11,9 @@ import RawTextPanel from '../components/review/RawTextPanel.vue'
 import ConfirmDialog from '../components/review/ConfirmDialog.vue'
 import type { EditableRow } from '../components/review/types'
 import { revisionApi, type RevisionView } from '../api/revision'
-import { reportApi } from '../api/report'
+import { reportApi, type ReportVisit } from '../api/report'
+import { reportKindLabel } from '../utils/reportKind'
+import { formatVisitDate } from '../utils/visit'
 import DeleteReportDialog from '../components/home/DeleteReportDialog.vue'
 import {
   REASON_MAX_LENGTH,
@@ -60,6 +62,18 @@ const revisionsLoaded = ref(false)
 const revisionsError = ref('')
 const toast = ref('')
 let toastTimer: ReturnType<typeof setTimeout> | null = null
+const isStructuredReport = computed(() => (draft.value?.report.reportKind ?? 'STRUCTURED') === 'STRUCTURED')
+const reportVisits = ref<ReportVisit[]>([])
+const visitsError = ref('')
+
+async function loadVisits() {
+  try {
+    reportVisits.value = await reportApi.listVisits(reportId)
+    visitsError.value = ''
+  } catch (error) {
+    visitsError.value = errorMessage(error, '关联就诊加载失败')
+  }
+}
 const tableEditable = computed(() => editable.value || (confirmed.value && revising.value))
 const failureText = computed(() => ocrErrorText(draft.value?.ocrJob?.errorCode))
 const retryHint = computed(() => {
@@ -91,7 +105,8 @@ async function load() {
   try {
     apply(await ocrApi.draft(reportId))
     loadError.value = ''
-    if (confirmed.value && !revisionsLoaded.value) void loadRevisions()
+    if (confirmed.value && isStructuredReport.value && !revisionsLoaded.value) void loadRevisions()
+    if (confirmed.value) void loadVisits()
   } catch (error) {
     loadError.value = errorMessage(error, '报告加载失败，请稍后刷新')
   } finally {
@@ -431,7 +446,19 @@ onBeforeUnmount(() => {
             </div>
           </div>
 
-          <template v-if="editable || confirmed">
+          <div v-if="!isStructuredReport && confirmed" class="imaging-panel" data-testid="imaging-panel">
+            <p class="notice notice-success" role="status">
+              这份{{ reportKindLabel(draft.report.reportKind) }}已归档，原件可在左侧查看。
+            </p>
+            <p class="field-hint">检查日期：{{ draft.report.examinationDate ?? '未填写' }}</p>
+            <h3>{{ draft.report.reportKind === 'IMAGING' ? '检查结论 / 印象' : '说明' }}</h3>
+            <p v-if="draft.report.conclusionText" class="imaging-conclusion" data-testid="imaging-conclusion">
+              {{ draft.report.conclusionText }}
+            </p>
+            <p v-else class="field-hint">未填写</p>
+          </div>
+
+          <template v-else-if="editable || confirmed">
             <div v-if="confirmed" class="revise-head">
               <p class="notice notice-success" role="status">
                 {{ revising ? '正在修改这份报告，保存后会生成一条修改记录。' : '这份报告已确认保存。' }}
@@ -520,7 +547,22 @@ onBeforeUnmount(() => {
         </section>
       </div>
 
-      <section v-if="confirmed" class="home-card revision-section" aria-labelledby="revision-title">
+      <section v-if="confirmed" class="home-card" aria-labelledby="report-visits-title" data-testid="report-visits">
+        <h2 id="report-visits-title">关联就诊</h2>
+        <p v-if="visitsError" class="notice notice-error" role="alert">{{ visitsError }}</p>
+        <p v-else-if="reportVisits.length === 0" class="field-hint">
+          尚未关联就诊。可在
+          <RouterLink class="text-link" :to="{ name: 'visits' }">就诊记录</RouterLink>
+          中关联这份报告。
+        </p>
+        <ul v-else class="timeline-linked" data-testid="report-visits-list">
+          <li v-for="v in reportVisits" :key="v.id">
+            {{ formatVisitDate(v.visitDate) }} · {{ v.department ? `${v.hospitalText} · ${v.department}` : v.hospitalText }}
+          </li>
+        </ul>
+      </section>
+
+      <section v-if="confirmed && isStructuredReport" class="home-card revision-section" aria-labelledby="revision-title">
         <h2 id="revision-title">修改记录</h2>
         <p v-if="!revisionsLoaded" class="field-hint" role="status">加载中…</p>
         <p v-else-if="revisionsError" class="notice notice-error" role="alert">{{ revisionsError }}</p>

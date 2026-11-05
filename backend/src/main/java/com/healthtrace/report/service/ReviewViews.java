@@ -4,6 +4,7 @@ import com.healthtrace.report.domain.AbnormalFlag;
 import com.healthtrace.report.domain.OcrJob;
 import com.healthtrace.report.domain.OcrJobStatus;
 import com.healthtrace.report.domain.ProcessingStatus;
+import com.healthtrace.report.domain.ReportKind;
 import com.healthtrace.report.domain.ResultKind;
 import com.healthtrace.report.service.ReportViews.PhotoView;
 
@@ -42,7 +43,9 @@ public final class ReviewViews {
             String title,
             LocalDate examinationDate,
             ProcessingStatus processingStatus,
-            long version) {
+            long version,
+            ReportKind reportKind,
+            String conclusionText) {
     }
 
     /**

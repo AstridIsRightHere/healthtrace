@@ -54,6 +54,10 @@ export interface ReportListItem {
   photoCount: number
   coverPhotoId: number | null
   coverHasPreview: boolean
+  /** 封面文件的 MIME（如 application/pdf）；无封面为 null */
+  coverMediaType?: string | null
+  /** 封面文件的原始文件名（后端已清洗，仅展示用） */
+  coverFileName?: string | null
   /** 最近一次 OCR 任务的归一化错误码（无任务或成功时为 null） */
   lastOcrErrorCode: string | null
   /** 列表移除时间：仅回收站（status=REMOVED）返回，其他列表为 null（FR-016） */
@@ -95,6 +99,11 @@ export interface UploadPhotoPayload {
   duplicateDecision?: DuplicateDecision
   onProgress?: (percent: number) => void
   signal?: AbortSignal
+}
+
+export interface UpdateReportMetadataPayload {
+  title: string | null
+  examinationDate: string | null
 }
 
 export const reportApi = {
@@ -139,6 +148,10 @@ export const reportApi = {
   /** POST /api/v1/reports/{reportId}/completion：影像/其他报告上传完成后直接归档为已确认 */
   completeImaging: (reportId: number) =>
     api.post<ReportView>(`/reports/${reportId}/completion`).then((res) => res.data),
+
+  /** PATCH /api/v1/reports/{reportId}：修改标题与检查日期（两字段按原样写入，空标题为 null；留审计） */
+  updateMetadata: (reportId: number, payload: UpdateReportMetadataPayload) =>
+    api.patch<ReportView>(`/reports/${reportId}`, payload).then((res) => res.data),
 
   /** GET /api/v1/reports/{reportId}/visits：该报告关联的就诊 */
   listVisits: (reportId: number) =>

@@ -24,6 +24,7 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -90,6 +91,24 @@ public class ReportController {
     public ReportView completeImaging(@AuthenticationPrincipal AccountPrincipal principal,
                                       @PathVariable long reportId) {
         return uploadService.completeImaging(principal.accountId(), reportId);
+    }
+
+    /** 标题按码点上限在服务端校验，这里只做粗上限防止超大请求。两个字段均按原样写入（null 即清空）。 */
+    public record UpdateReportMetadataRequest(
+            @Size(max = 1024) String title,
+            LocalDate examinationDate) {
+    }
+
+    /**
+     * 编辑报告标题与检查日期，任意处理状态均可。他人、回收站中或已删除的报告 404 HT-3001；
+     * 未来日期或标题超长 400 HT-1001；并发修改 409 HT-3002。
+     */
+    @PatchMapping("/api/v1/reports/{reportId}")
+    public ReportView updateMetadata(@AuthenticationPrincipal AccountPrincipal principal,
+                                     @PathVariable long reportId,
+                                     @Valid @RequestBody(required = false) UpdateReportMetadataRequest request) {
+        UpdateReportMetadataRequest body = request == null ? new UpdateReportMetadataRequest(null, null) : request;
+        return uploadService.updateMetadata(principal.accountId(), reportId, body.title(), body.examinationDate());
     }
 
     /**

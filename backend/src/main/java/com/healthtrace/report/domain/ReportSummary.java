@@ -21,6 +21,26 @@ public class ReportSummary {
     private String lastOcrErrorCode;
     /** 列表移除时间（仅回收站查询填充，其他列表为 null）。 */
     private LocalDateTime removedAt;
+    /** 首图服务端检测的媒体类型（无首图为 null）。 */
+    private String coverMediaType;
+    /** 首图上传时的原始文件名（已清洗；旧数据或未提供为 null）。 */
+    private String coverFileName;
+
+    public String getCoverMediaType() {
+        return coverMediaType;
+    }
+
+    public void setCoverMediaType(String coverMediaType) {
+        this.coverMediaType = coverMediaType;
+    }
+
+    public String getCoverFileName() {
+        return coverFileName;
+    }
+
+    public void setCoverFileName(String coverFileName) {
+        this.coverFileName = coverFileName;
+    }
 
     public Long getId() {
         return id;

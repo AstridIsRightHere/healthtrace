@@ -65,6 +65,10 @@ class ReportUploadServiceTest {
     private final ProfileMapper profileMapper = mock(ProfileMapper.class);
     private final AccountMapper accountMapper = mock(AccountMapper.class);
     private final StorageService storage = mock(StorageService.class);
+    private final com.healthtrace.report.mapper.ObservationMapper observationMapper =
+            mock(com.healthtrace.report.mapper.ObservationMapper.class);
+    private final com.healthtrace.rights.audit.AuditService auditService =
+            mock(com.healthtrace.rights.audit.AuditService.class);
     private final Clock clock = Clock.fixed(Instant.parse("2026-10-25T10:00:00Z"), ZoneOffset.UTC);
 
     private ReportUploadService service;
@@ -72,8 +76,7 @@ class ReportUploadServiceTest {
     @BeforeEach
     void setUp() {
         service = new ReportUploadService(new ReportAccess(reportMapper, profileMapper, accountMapper), reportMapper,
-                photoMapper, profileMapper, storage,
-                mock(com.healthtrace.rights.audit.AuditService.class), clock);
+                photoMapper, observationMapper, profileMapper, storage, auditService, clock);
         given(profileMapper.findActiveByAccountAndProfile(ACCOUNT, PROFILE)).willReturn(new ProfileRecord());
         given(accountMapper.findById(ACCOUNT)).willReturn(account(true));
         given(reportMapper.findById(REPORT)).willReturn(report(ProcessingStatus.UPLOADING));
@@ -414,5 +417,144 @@ class ReportUploadServiceTest {
         assertThatThrownBy(() -> upload(file("original", JPEG), null, DuplicateDecision.ASK))
                 .satisfies(e -> assertThat(codeOf(e)).isEqualTo(ErrorCode.REPORT_STATE_CONFLICT));
         verify(storage, never()).put(anyString(), any(), anyLong(), anyString());
+    }
+
+    // ------------------------------------------------------------ metadata update
+
+    private Report confirmedStructured(LocalDate date) {
+        Report report = report(ProcessingStatus.CONFIRMED);
+        report.setReportKind(com.healthtrace.report.domain.ReportKind.STRUCTURED);
+        report.setExaminationDate(date);
+        report.setTitle("旧标题");
+        report.setVersion(4L);
+        given(reportMapper.findById(REPORT)).willReturn(report);
+        return report;
+    }
+
+    @Test
+    void updateMetadataWritesFieldsBumpsVersionAndAudits() {
+        confirmedStructured(LocalDate.of(2026, 10, 1));
+        given(reportMapper.updateMetadata(eq(REPORT), eq(4L), any(), any(), any())).willReturn(1);
+
+        var view = service.updateMetadata(ACCOUNT, REPORT, "  新标题  ", LocalDate.of(2026, 10, 20));
+
+        LocalDateTime now = LocalDateTime.of(2026, 10, 25, 10, 0);
+        verify(reportMapper).updateMetadata(REPORT, 4L, "新标题", LocalDate.of(2026, 10, 20), now);
+        verify(observationMapper).updateFormalExaminationDate(REPORT, LocalDate.of(2026, 10, 20), now);
+        verify(auditService).success(ACCOUNT, com.healthtrace.rights.audit.AuditAction.REPORT_METADATA_UPDATE,
+                com.healthtrace.rights.audit.AuditService.token("report", REPORT));
+        assertThat(view.title()).isEqualTo("新标题");
+        assertThat(view.examinationDate()).isEqualTo(LocalDate.of(2026, 10, 20));
+    }
+
+    @Test
+    void updateMetadataBlankTitleBecomesNullAndSameDateSkipsObservations() {
+        confirmedStructured(LocalDate.of(2026, 10, 1));
+        given(reportMapper.updateMetadata(eq(REPORT), eq(4L), any(), any(), any())).willReturn(1);
+
+        var view = service.updateMetadata(ACCOUNT, REPORT, "   ", LocalDate.of(2026, 10, 1));
+
+        verify(reportMapper).updateMetadata(eq(REPORT), eq(4L), eq(null), eq(LocalDate.of(2026, 10, 1)), any());
+        verify(observationMapper, never()).updateFormalExaminationDate(anyLong(), any(), any());
+        assertThat(view.title()).isNull();
+    }
+
+    @Test
+    void updateMetadataOnOthersReportIsNotFound() {
+        Report report = confirmedStructured(LocalDate.of(2026, 10, 1));
+        report.setProfileId(999L);
+
+        assertThatThrownBy(() -> service.updateMetadata(ACCOUNT, REPORT, "x", null))
+                .satisfies(e -> assertThat(codeOf(e)).isEqualTo(ErrorCode.RESOURCE_NOT_FOUND));
+        verify(reportMapper, never()).updateMetadata(anyLong(), anyLong(), any(), any(), any());
+        verify(auditService, never()).success(anyLong(), any(), any());
+    }
+
+    @Test
+    void updateMetadataOnRecycledReportIsNotFound() {
+        Report report = confirmedStructured(LocalDate.of(2026, 10, 1));
+        report.setVisibilityStatus(VisibilityStatus.LIST_REMOVED);
+
+        assertThatThrownBy(() -> service.updateMetadata(ACCOUNT, REPORT, "x", null))
+                .satisfies(e -> assertThat(codeOf(e)).isEqualTo(ErrorCode.RESOURCE_NOT_FOUND));
+        verify(reportMapper, never()).updateMetadata(anyLong(), anyLong(), any(), any(), any());
+    }
+
+    @Test
+    void updateMetadataFutureDateIsRejected() {
+        confirmedStructured(LocalDate.of(2026, 10, 1));
+
+        assertThatThrownBy(() -> service.updateMetadata(ACCOUNT, REPORT, null, LocalDate.of(2026, 10, 27)))
+                .satisfies(e -> {
+                    assertThat(codeOf(e)).isEqualTo(ErrorCode.VALIDATION_FAILED);
+                    assertThat(((ApiException) e).getFieldErrors()).extracting("field").containsExactly("examinationDate");
+                });
+        verify(reportMapper, never()).updateMetadata(anyLong(), anyLong(), any(), any(), any());
+    }
+
+    @Test
+    void updateMetadataOverlongTitleIsRejected() {
+        confirmedStructured(LocalDate.of(2026, 10, 1));
+        String title = "检".repeat(ReportPolicy.TITLE_MAX_LENGTH + 1);
+
+        assertThatThrownBy(() -> service.updateMetadata(ACCOUNT, REPORT, title, null))
+                .satisfies(e -> {
+                    assertThat(codeOf(e)).isEqualTo(ErrorCode.VALIDATION_FAILED);
+                    assertThat(((ApiException) e).getFieldErrors()).extracting("field").containsExactly("title");
+                });
+        verify(reportMapper, never()).updateMetadata(anyLong(), anyLong(), any(), any(), any());
+    }
+
+    @Test
+    void updateMetadataClearingDateOfConfirmedStructuredIsRejected() {
+        confirmedStructured(LocalDate.of(2026, 10, 1));
+
+        assertThatThrownBy(() -> service.updateMetadata(ACCOUNT, REPORT, "x", null))
+                .satisfies(e -> assertThat(codeOf(e)).isEqualTo(ErrorCode.VALIDATION_FAILED));
+    }
+
+    @Test
+    void updateMetadataVersionRaceIsConflict() {
+        confirmedStructured(LocalDate.of(2026, 10, 1));
+        given(reportMapper.updateMetadata(anyLong(), anyLong(), any(), any(), any())).willReturn(0);
+
+        assertThatThrownBy(() -> service.updateMetadata(ACCOUNT, REPORT, "x", LocalDate.of(2026, 10, 2)))
+                .satisfies(e -> assertThat(codeOf(e)).isEqualTo(ErrorCode.VERSION_CONFLICT));
+        verify(auditService, never()).success(anyLong(), any(), any());
+        verify(observationMapper, never()).updateFormalExaminationDate(anyLong(), any(), any());
+    }
+
+    // ------------------------------------------------------------ original filename
+
+    @Test
+    void sanitizeFilenameStripsPathsControlsAndBlank() {
+        assertThat(ReportUploadService.sanitizeFilename(null)).isNull();
+        assertThat(ReportUploadService.sanitizeFilename("   ")).isNull();
+        assertThat(ReportUploadService.sanitizeFilename("C:\\Users\\me\\血常规.jpg")).isEqualTo("血常规.jpg");
+        assertThat(ReportUploadService.sanitizeFilename("../../etc/passwd")).isEqualTo("passwd");
+        assertThat(ReportUploadService.sanitizeFilename("dir/")).isNull();
+        assertThat(ReportUploadService.sanitizeFilename(" a\u0000b\r\n\u202Ec.pdf ")).isEqualTo("abc.pdf");
+    }
+
+    @Test
+    void sanitizeFilenameTruncatesByCodePoints() {
+        String emoji = "\uD83D\uDE00"; // 一个码点、两个 char
+        String name = emoji.repeat(300);
+        String result = ReportUploadService.sanitizeFilename(name);
+        assertThat(result.codePointCount(0, result.length())).isEqualTo(255);
+        assertThat(result).isEqualTo(emoji.repeat(255));
+    }
+
+    @Test
+    void uploadStoresSanitizedOriginalFilename() {
+        MockMultipartFile original = new MockMultipartFile("original", "C:\\fakepath\\报告\u0007.jpg",
+                "application/octet-stream", JPEG);
+
+        upload(original, null, DuplicateDecision.ASK);
+
+        ArgumentCaptor<Photo> captor = ArgumentCaptor.forClass(Photo.class);
+        verify(photoMapper).insert(captor.capture());
+        assertThat(captor.getValue().getOriginalFilename()).isEqualTo("报告.jpg");
+        assertThat(captor.getValue().getMediaType()).isEqualTo("image/jpeg");
     }
 }

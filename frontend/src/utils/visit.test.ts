@@ -4,6 +4,7 @@ import {
   formatShortDate,
   formatVisitDate,
   groupByYear,
+  linkDateWarning,
   linkableReports,
   linkedReportLabel,
   localIsoDate,
@@ -100,5 +101,23 @@ describe('groupByYear', () => {
       ['2026', 2],
       ['2025', 1],
     ])
+  })
+})
+
+describe('linkDateWarning', () => {
+  it('returns empty when span is reasonable', () => {
+    expect(linkDateWarning('2026-10-20', '2026-10-01')).toBe('')
+    expect(linkDateWarning('2026-10-20', '2026-10-20')).toBe('')
+    expect(linkDateWarning('2026-10-20', '2026-12-30')).toBe('')
+  })
+  it('warns when report is far earlier than visit', () => {
+    expect(linkDateWarning('2026-10-20', '2026-09-01')).toContain('早 49 天')
+  })
+  it('warns when report is far later than visit', () => {
+    expect(linkDateWarning('2026-01-01', '2026-06-01')).toContain('晚 151 天')
+  })
+  it('ignores missing or malformed dates', () => {
+    expect(linkDateWarning('2026-10-20', null)).toBe('')
+    expect(linkDateWarning('bad', '2026-01-01')).toBe('')
   })
 })

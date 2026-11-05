@@ -85,4 +85,11 @@ public interface ReportMapper {
     int completeWithoutObservations(@Param("id") long id,
                                     @Param("confirmedBy") long confirmedBy,
                                     @Param("confirmedAt") LocalDateTime confirmedAt);
+
+    /** 编辑报告元数据（标题、检查日期，乐观锁）：version 不符或可见性不是 NORMAL 时返回 0。任何处理状态均可。 */
+    int updateMetadata(@Param("id") long id,
+                       @Param("expectedVersion") long expectedVersion,
+                       @Param("title") String title,
+                       @Param("examinationDate") LocalDate examinationDate,
+                       @Param("updatedAt") LocalDateTime updatedAt);
 }

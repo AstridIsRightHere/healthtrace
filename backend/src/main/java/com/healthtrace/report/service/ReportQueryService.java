@@ -133,6 +133,6 @@ public class ReportQueryService {
         return new ReportListItem(s.getId(), s.getTitle(), s.getReportType(), s.getReportKind(),
                 s.getExaminationDate(), s.getConclusionText(), s.getProcessingStatus(), s.getCreatedAt(),
                 s.getPhotoCount(), s.getCoverPhotoId(), s.getCoverHasPreview(), s.getLastOcrErrorCode(),
-                s.getRemovedAt());
+                s.getRemovedAt(), s.getCoverMediaType(), s.getCoverFileName());
     }
 }

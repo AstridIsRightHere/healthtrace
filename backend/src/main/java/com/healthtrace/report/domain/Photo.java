@@ -19,6 +19,16 @@ public class Photo {
     private StorageStatus storageStatus;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
+    /** 上传时客户端提供的原始文件名（已去除路径与控制字符，最多 255 码点）；未提供为 null。仅用于展示。 */
+    private String originalFilename;
+
+    public String getOriginalFilename() {
+        return originalFilename;
+    }
+
+    public void setOriginalFilename(String originalFilename) {
+        this.originalFilename = originalFilename;
+    }
 
     public Long getId() {
         return id;

@@ -4,16 +4,16 @@
 
     <insert id="insert" useGeneratedKeys="true" keyProperty="id" keyColumn="id">
         INSERT INTO photo (report_id, profile_id, object_key, content_digest, media_type, byte_size,
-                           preview_object_key, preview_media_type, preview_byte_size, page_order, storage_status,
+                           preview_object_key, preview_media_type, preview_byte_size, page_order, storage_status, original_filename,
                            created_at, updated_at)
         VALUES (#{reportId}, #{profileId}, #{objectKey}, #{contentDigest}, #{mediaType}, #{byteSize},
-                #{previewObjectKey}, #{previewMediaType}, #{previewByteSize}, #{pageOrder}, #{storageStatus},
+                #{previewObjectKey}, #{previewMediaType}, #{previewByteSize}, #{pageOrder}, #{storageStatus}, #{originalFilename},
                 #{createdAt}, #{updatedAt})
     </insert>
 
     <select id="findById" resultType="com.healthtrace.report.domain.Photo">
         SELECT id, report_id, profile_id, object_key, content_digest, media_type, byte_size,
-               preview_object_key, preview_media_type, preview_byte_size, page_order, storage_status,
+               preview_object_key, preview_media_type, preview_byte_size, page_order, storage_status, original_filename,
                created_at, updated_at
         FROM photo WHERE id = #{id}
     </select>
@@ -35,7 +35,7 @@
 
     <select id="findCompleteByReport" resultType="com.healthtrace.report.domain.Photo">
         SELECT id, report_id, profile_id, object_key, content_digest, media_type, byte_size,
-               preview_object_key, preview_media_type, preview_byte_size, page_order, storage_status,
+               preview_object_key, preview_media_type, preview_byte_size, page_order, storage_status, original_filename,
                created_at, updated_at
         FROM photo WHERE report_id = #{reportId} AND storage_status = 'COMPLETE'
         ORDER BY page_order, id

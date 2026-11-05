@@ -101,6 +101,62 @@ class ReportWebTest {
                 LocalDateTime.of(2026, 10, 25, 10, 0));
     }
 
+    // ------------------------------------------------------------ update metadata
+
+    private org.springframework.test.web.servlet.ResultActions patchAs(long accountId, String url, String body)
+            throws Exception {
+        MockHttpSession session = new MockHttpSession();
+        String token = csrfToken(session);
+        return mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch(url)
+                .with(account(accountId)).session(session).header("X-CSRF-TOKEN", token)
+                .contentType(JSON).content(body));
+    }
+
+    @Test
+    void updateMetadataReturns200() throws Exception {
+        given(uploadService.updateMetadata(7L, 21L, "血常规", LocalDate.of(2026, 10, 20))).willReturn(reportView());
+
+        patchAs(7L, "/api/v1/reports/21", "{\"title\":\"血常规\",\"examinationDate\":\"2026-10-20\"}")
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(21))
+                .andExpect(jsonPath("$.title").value("血常规"))
+                .andExpect(jsonPath("$.examinationDate").value("2026-10-20"));
+    }
+
+    @Test
+    void updateMetadataPassesNullsThrough() throws Exception {
+        given(uploadService.updateMetadata(7L, 21L, null, null)).willReturn(reportView());
+
+        patchAs(7L, "/api/v1/reports/21", "{\"title\":null,\"examinationDate\":null}")
+                .andExpect(status().isOk());
+        verify(uploadService).updateMetadata(7L, 21L, null, null);
+    }
+
+    @Test
+    void updateMetadataOfOthersReportIsNotFound() throws Exception {
+        given(uploadService.updateMetadata(eq(7L), eq(88L), any(), any()))
+                .willThrow(new ApiException(ErrorCode.RESOURCE_NOT_FOUND));
+
+        patchAs(7L, "/api/v1/reports/88", "{\"title\":\"x\"}")
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("HT-3001"));
+    }
+
+    @Test
+    void updateMetadataWithoutCsrfIsRejected() throws Exception {
+        mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch("/api/v1/reports/21")
+                        .with(account(7L)).contentType(JSON).content("{}"))
+                .andExpect(status().isForbidden());
+        verify(uploadService, never()).updateMetadata(anyLong(), anyLong(), any(), any());
+    }
+
+    @Test
+    void updateMetadataMalformedDateIsBadRequest() throws Exception {
+        patchAs(7L, "/api/v1/reports/21", "{\"examinationDate\":\"2026-13-45\"}")
+                .andExpect(status().isBadRequest());
+        verify(uploadService, never()).updateMetadata(anyLong(), anyLong(), any(), any());
+    }
+
     // ------------------------------------------------------------ create report
 
     @Test
@@ -315,7 +371,7 @@ class ReportWebTest {
                 .willReturn(new ListPage<>(List.of(
                 new com.healthtrace.report.service.ReportViews.ReportListItem(31L, "甲功", ReportType.UNKNOWN,
                         ReportKind.STRUCTURED, LocalDate.of(2026, 10, 1), null, ProcessingStatus.CONFIRMED,
-                        LocalDateTime.of(2026, 10, 2, 9, 0), 1, 5L, true, null, null)), 1));
+                        LocalDateTime.of(2026, 10, 2, 9, 0), 1, 5L, true, null, null, "image/jpeg", "a.jpg")), 1));
         mvc.perform(get("/api/v1/patient-profiles/11/reports").param("status", "confirmed").with(account(7L)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.items[0].id").value(31))
@@ -345,7 +401,7 @@ class ReportWebTest {
     void listReportGroupsReturnsGroups() throws Exception {
         var item = new com.healthtrace.report.service.ReportViews.ReportListItem(31L, "血常规", ReportType.UNKNOWN,
                 ReportKind.STRUCTURED, LocalDate.of(2026, 10, 1), null, ProcessingStatus.CONFIRMED,
-                LocalDateTime.of(2026, 10, 2, 9, 0), 1, 5L, true, null, null);
+                LocalDateTime.of(2026, 10, 2, 9, 0), 1, 5L, true, null, null, "image/jpeg", "a.jpg");
         given(queryService.listConfirmedGroups(7L, 11L)).willReturn(List.of(
                 new com.healthtrace.report.service.ReportViews.ReportGroup("血常规", "血常规", 1,
                         LocalDate.of(2026, 10, 1), List.of(item))));

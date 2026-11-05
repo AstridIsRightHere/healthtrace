@@ -8,13 +8,13 @@ import { ocrApi } from '../api/ocr'
 import { useAuthStore } from '../stores/auth'
 import { useProfileStore } from '../stores/profile'
 import { canGeneratePreview, createPreview } from '../utils/imageCompress'
+import { REJECT_TEXT, checkUploadFile } from '../utils/fileAccept'
 import PhotoPicker from '../components/report/PhotoPicker.vue'
 import PhotoQueueList from '../components/report/PhotoQueueList.vue'
 import DuplicateDialog from '../components/report/DuplicateDialog.vue'
 import type { QueueItem } from '../components/report/types'
 
 const MAX_FILES = 20
-const MAX_FILE_BYTES = 25 * 1024 * 1024
 const CONCURRENCY = 2
 
 const auth = useAuthStore()
@@ -63,8 +63,9 @@ function onPick(files: File[]) {
       rejected.push(`${file.name}（超过 20 个）`)
       continue
     }
-    if (file.size > MAX_FILE_BYTES) {
-      rejected.push(`${file.name}（超过 25 MB）`)
+    const reason = checkUploadFile(file)
+    if (reason) {
+      rejected.push(`${file.name}（${REJECT_TEXT[reason]}）`)
       continue
     }
     items.value.push(

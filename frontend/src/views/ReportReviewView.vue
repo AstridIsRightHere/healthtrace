@@ -15,6 +15,8 @@ import { reportApi, type ReportVisit } from '../api/report'
 import { reportKindLabel } from '../utils/reportKind'
 import { formatVisitDate } from '../utils/visit'
 import DeleteReportDialog from '../components/home/DeleteReportDialog.vue'
+import EditReportDialog from '../components/report/EditReportDialog.vue'
+import type { ReportView } from '../api/report'
 import {
   REASON_MAX_LENGTH,
   buildRevisionCommand,
@@ -161,6 +163,21 @@ async function onManualEntry() {
     await load()
   } catch (error) {
     message.value = errorMessage(error, '进入手动录入失败，请稍后重试')
+  } finally {
+    actionBusy.value = false
+  }
+}
+
+/** 影像/其他报告“稍后处理”后再次打开：直接归档，不进入识别或手动录入 */
+async function onArchiveImaging() {
+  if (actionBusy.value) return
+  actionBusy.value = true
+  message.value = ''
+  try {
+    await reportApi.completeImaging(reportId)
+    await load()
+  } catch (error) {
+    message.value = errorMessage(error, '归档失败，请稍后重试')
   } finally {
     actionBusy.value = false
   }
@@ -384,6 +401,24 @@ async function onListRemove() {
   }
 }
 
+// 编辑标题与检查日期：本地合并结果，不重置正在编辑的指标表
+const showEdit = ref(false)
+
+function onMetaSaved(view: ReportView) {
+  showEdit.value = false
+  const current = draft.value
+  if (current) {
+    current.report = {
+      ...current.report,
+      title: view.title,
+      examinationDate: view.examinationDate,
+      version: current.report.version + 1,
+    }
+  }
+  examinationDate.value = view.examinationDate ?? ''
+  showToast('报告信息已更新')
+}
+
 function onDialogConfirm() {
   if (revising.value) void onRevise()
   else void onConfirm()
@@ -399,7 +434,15 @@ onBeforeUnmount(() => {
 <template>
   <main class="home-page review-page">
     <header class="home-header">
-      <RouterLink class="btn-ghost btn-small" :to="{ name: 'home' }">← 返回首页</RouterLink>
+      <RouterLink
+        v-if="draft && !isStructuredReport"
+        class="btn-ghost btn-small"
+        :to="{ name: 'records', query: { kind: draft.report.reportKind } }"
+        data-testid="review-back"
+      >
+        ← 返回档案
+      </RouterLink>
+      <RouterLink v-else class="btn-ghost btn-small" :to="{ name: 'home' }" data-testid="review-back">← 返回首页</RouterLink>
       <p class="brand">HealthTrace</p>
     </header>
 
@@ -407,7 +450,28 @@ onBeforeUnmount(() => {
     <p v-else-if="loadError && !draft" class="notice notice-error" role="alert">{{ loadError }}</p>
 
     <template v-else-if="draft">
-      <h1 class="review-title">{{ draft.report.title || '核对检查报告' }}</h1>
+      <div class="review-title-row">
+        <h1 class="review-title" data-testid="review-title">{{ draft.report.title || '核对检查报告' }}</h1>
+        <button
+          type="button"
+          class="btn-ghost btn-small"
+          :disabled="submitting || actionBusy"
+          data-testid="edit-report-open"
+          @click="showEdit = true"
+        >
+          编辑信息
+        </button>
+      </div>
+      <p class="field-hint review-meta" data-testid="review-meta-date">
+        检查日期：{{ draft.report.examinationDate ?? '未填写' }}
+      </p>
+      <EditReportDialog
+        v-if="showEdit"
+        :report-id="reportId"
+        :report="draft.report"
+        @saved="onMetaSaved"
+        @cancel="showEdit = false"
+      />
 
       <div class="review-layout">
         <PhotoViewer class="review-viewer" :photos="draft.photos" />
@@ -435,6 +499,27 @@ onBeforeUnmount(() => {
                 手动录入
               </button>
             </div>
+          </div>
+
+          <div
+            v-else-if="status === 'UPLOADING' && !isStructuredReport"
+            class="review-status"
+            role="note"
+            data-testid="imaging-pending"
+          >
+            <p>这份{{ reportKindLabel(draft.report.reportKind) }}已上传，尚未归档。影像与其他报告不需要识别指标。</p>
+            <div class="review-actions">
+              <button
+                type="button"
+                class="btn-primary"
+                :disabled="actionBusy || draft.photos.length === 0"
+                data-testid="imaging-archive"
+                @click="onArchiveImaging"
+              >
+                {{ actionBusy ? '处理中…' : '完成归档' }}
+              </button>
+            </div>
+            <p v-if="draft.photos.length === 0" class="field-hint">还没有上传完成的文件，无法归档。</p>
           </div>
 
           <div v-else-if="status === 'UPLOADING'" class="review-status" role="note">

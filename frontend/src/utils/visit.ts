@@ -93,6 +93,37 @@ export function linkableReports(all: ReportListItem[], visit: Pick<Visit, 'repor
     })
 }
 
+/** 报告检查日早于就诊日超过该天数，提示可能关联错误（先检查后就诊属常见，留出一个月余量） */
+export const LINK_EARLY_WARN_DAYS = 30
+/** 报告检查日晚于就诊日超过该天数，同样提示（复查结果通常在数周内出具） */
+export const LINK_LATE_WARN_DAYS = 90
+
+function isoToUtcDays(iso: string): number | null {
+  const m = ISO_DATE.exec(iso)
+  if (!m) return null
+  const t = Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3]))
+  return Number.isNaN(t) ? null : Math.round(t / 86_400_000)
+}
+
+/**
+ * 关联报告前的日期合理性检查（只提示不拦截）：
+ * 返回提示文案；日期缺失、格式不对或跨度在合理范围内返回空串。
+ */
+export function linkDateWarning(visitDate: string, examinationDate: string | null | undefined): string {
+  if (!examinationDate) return ''
+  const v = isoToUtcDays(visitDate)
+  const r = isoToUtcDays(examinationDate)
+  if (v === null || r === null) return ''
+  const diff = r - v
+  if (diff < -LINK_EARLY_WARN_DAYS) {
+    return `这份报告的检查日期比就诊日期早 ${-diff} 天，请确认是否关联到了正确的就诊。`
+  }
+  if (diff > LINK_LATE_WARN_DAYS) {
+    return `这份报告的检查日期比就诊日期晚 ${diff} 天，请确认是否关联到了正确的就诊。`
+  }
+  return ''
+}
+
 /** 时间线按年份分组，保持传入顺序（后端已按就诊日倒序） */
 export function groupByYear<T extends Pick<Visit, 'visitDate'>>(visits: T[]): Array<{ year: string; visits: T[] }> {
   const groups: Array<{ year: string; visits: T[] }> = []

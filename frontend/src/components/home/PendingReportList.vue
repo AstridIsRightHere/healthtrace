@@ -6,6 +6,7 @@ import { errorMessage } from '../../api'
 import { ocrErrorText } from '../../api/ocr'
 import { reportApi, type ProcessingStatus, type ReportListItem } from '../../api/report'
 import DeleteReportDialog from './DeleteReportDialog.vue'
+import ReportCover from '../report/ReportCover.vue'
 
 const props = defineProps<{ profileId: number }>()
 
@@ -113,14 +114,7 @@ onMounted(() => loadDrafts())
           v-bind="isEmpty(report) ? {} : { to: { name: 'report-review', params: { reportId: String(report.id) } } }"
           data-testid="pending-link"
         >
-          <img
-            v-if="report.coverPhotoId && report.coverHasPreview"
-            class="queue-thumb"
-            :src="reportApi.photoUrl(report.coverPhotoId, 'preview')"
-            alt=""
-            loading="lazy"
-          />
-          <span v-else class="queue-thumb queue-thumb-placeholder" aria-hidden="true">报告</span>
+          <ReportCover :report="report" />
           <div class="queue-meta">
             <p class="queue-name">{{ title(report) }}</p>
             <p class="queue-sub">

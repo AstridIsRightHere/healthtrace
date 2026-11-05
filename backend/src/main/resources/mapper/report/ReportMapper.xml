@@ -27,6 +27,8 @@
                 WHERE p.report_id = r.id AND p.storage_status = 'COMPLETE') AS photo_count,
                c.id AS cover_photo_id,
                (c.preview_object_key IS NOT NULL) AS cover_has_preview,
+               c.media_type AS cover_media_type,
+               c.original_filename AS cover_file_name,
                (SELECT j.error_code FROM ocr_job j
                 WHERE j.report_id = r.id ORDER BY j.id DESC LIMIT 1) AS last_ocr_error_code
         FROM report r
@@ -57,6 +59,8 @@
                 WHERE p.report_id = r.id AND p.storage_status = 'COMPLETE') AS photo_count,
                c.id AS cover_photo_id,
                (c.preview_object_key IS NOT NULL) AS cover_has_preview,
+               c.media_type AS cover_media_type,
+               c.original_filename AS cover_file_name,
                (SELECT j.error_code FROM ocr_job j
                 WHERE j.report_id = r.id ORDER BY j.id DESC LIMIT 1) AS last_ocr_error_code
         FROM report r
@@ -88,6 +92,8 @@
                 WHERE p.report_id = r.id AND p.storage_status = 'COMPLETE') AS photo_count,
                c.id AS cover_photo_id,
                (c.preview_object_key IS NOT NULL) AS cover_has_preview,
+               c.media_type AS cover_media_type,
+               c.original_filename AS cover_file_name,
                (SELECT j.error_code FROM ocr_job j
                 WHERE j.report_id = r.id ORDER BY j.id DESC LIMIT 1) AS last_ocr_error_code,
                r.updated_at AS removed_at
@@ -186,5 +192,17 @@
         WHERE id = #{id}
           AND processing_status = 'UPLOADING'
           AND report_kind != 'STRUCTURED'
+    </update>
+
+    <!-- 编辑报告元数据（标题、检查日期）：任何处理状态均可，仅 NORMAL 可见性；乐观锁 + 版本 +1 -->
+    <update id="updateMetadata">
+        UPDATE report
+        SET title = #{title},
+            examination_date = #{examinationDate},
+            version = version + 1,
+            updated_at = #{updatedAt}
+        WHERE id = #{id}
+          AND version = #{expectedVersion}
+          AND visibility_status = 'NORMAL'
     </update>
 </mapper>

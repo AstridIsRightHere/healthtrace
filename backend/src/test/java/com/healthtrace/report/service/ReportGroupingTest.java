@@ -17,7 +17,7 @@ class ReportGroupingTest {
 
     private static ReportListItem item(long id, String title, ReportType type, LocalDate date) {
         return new ReportListItem(id, title, type, ReportKind.STRUCTURED, date, null, ProcessingStatus.CONFIRMED,
-                LocalDateTime.of(2026, 10, 1, 9, 0), 1, null, false, null, null);
+                LocalDateTime.of(2026, 10, 1, 9, 0), 1, null, false, null, null, null, null);
     }
 
     @Test

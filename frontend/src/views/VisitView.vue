@@ -12,6 +12,7 @@ import {
   formatShortDate,
   groupByYear,
   linkableReports,
+  linkDateWarning,
   linkedReportLabel,
   localIsoDate,
   toPayload,
@@ -147,6 +148,13 @@ async function submit() {
   } finally {
     saving.value = false
   }
+}
+
+/** 选中报告与就诊日期跨度过大时的提示（不拦截关联） */
+function linkWarning(v: Visit): string {
+  if (linkReportId.value == null) return ''
+  const report = reports.value.find((r) => r.id === linkReportId.value)
+  return report ? linkDateWarning(v.visitDate, report.examinationDate) : ''
 }
 
 function startLink(v: Visit) {
@@ -300,6 +308,14 @@ async function remove(v: Visit) {
               <div v-if="linkingVisitId === v.id" class="visit-link-box">
                 <template v-if="linkableReports(reports, v).length">
                   <ReportSelect v-model="linkReportId" label="选择报告" :reports="linkableReports(reports, v)" />
+                  <p
+                    v-if="linkWarning(v)"
+                    class="notice notice-warning"
+                    role="status"
+                    data-testid="visit-link-warning"
+                  >
+                    ⚠ {{ linkWarning(v) }}仍可继续关联。
+                  </p>
                   <div class="visit-form-actions">
                     <button type="button" class="btn-ghost btn-small" @click="linkingVisitId = null">取消</button>
                     <button

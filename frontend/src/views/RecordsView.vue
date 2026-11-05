@@ -5,6 +5,7 @@ import { computed, onMounted, ref, watch } from 'vue'
 import { RouterLink, useRoute, useRouter } from 'vue-router'
 import { errorMessage } from '../api'
 import { reportApi, type ReportListItem } from '../api/report'
+import ReportCover from '../components/report/ReportCover.vue'
 import { useProfileStore } from '../stores/profile'
 import { KIND_FILTERS, conclusionSummary, parseKindFilter, reportKindLabel, type KindFilter } from '../utils/reportKind'
 
@@ -107,8 +108,9 @@ onMounted(() => void load())
       <ul v-else class="records-items" data-testid="records-items">
         <li v-for="item in reports" :key="item.id" class="records-item" data-testid="records-item" :data-kind="item.reportKind">
           <RouterLink class="records-item-link" :to="{ name: 'report-review', params: { reportId: String(item.id) } }">
-            <span class="kind-badge" :data-kind="item.reportKind">{{ reportKindLabel(item.reportKind) }}</span>
+            <ReportCover :report="item" />
             <span class="records-item-main">
+              <span class="kind-badge" :data-kind="item.reportKind">{{ reportKindLabel(item.reportKind) }}</span>
               <span class="records-item-title">{{ item.title?.trim() || '未命名报告' }}</span>
               <span class="field-hint">{{ item.examinationDate ?? '检查日期未填写' }} · {{ item.photoCount }} 个文件</span>
               <span v-if="item.conclusionText" class="records-item-conclusion" data-testid="records-item-conclusion">

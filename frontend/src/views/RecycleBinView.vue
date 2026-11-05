@@ -24,11 +24,16 @@ function formatTime(iso: string | null | undefined): string {
 }
 
 async function load() {
-  const pid = profile.profile?.id
-  if (!pid) return
   loading.value = true
   message.value = ''
   try {
+    // 直接打开 /recycle-bin 时档案可能尚未加载；未加载就返回会让页面永远停在「加载中」
+    await profile.load()
+    const pid = profile.profile?.id
+    if (!pid) {
+      items.value = []
+      return
+    }
     items.value = (await reportApi.listRemoved(pid)).items
   } catch (error) {
     message.value = errorMessage(error, '回收站加载失败，请稍后重试')

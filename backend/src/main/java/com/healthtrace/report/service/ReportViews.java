@@ -71,7 +71,11 @@ public final class ReportViews {
             boolean coverHasPreview,
             String lastOcrErrorCode,
             /* 列表移除时间：仅 status=REMOVED（回收站）返回，其他列表为 null（FR-016） */
-            LocalDateTime removedAt) {
+            LocalDateTime removedAt,
+            /* 首图服务端检测的媒体类型，无首图为 null */
+            String coverMediaType,
+            /* 首图原始文件名（已清洗），无首图或未记录为 null */
+            String coverFileName) {
     }
 
     /** 已确认报告按种类聚合的一组（FR-010 报告对比入口）。reports 按检查日期、id 倒序。 */

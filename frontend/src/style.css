@@ -153,6 +153,13 @@ input[aria-invalid='true'] {
   color: var(--error-text);
 }
 
+/* 提醒（不拦截）：如就诊-报告日期跨度过大 */
+.notice-warning {
+  background: #fff4e0;
+  color: #7a4b00;
+  border: 1px solid #f3d29a;
+}
+
 .btn-primary,
 .btn-secondary {
   display: inline-flex;
@@ -486,9 +493,21 @@ legend {
   background: var(--accent-soft);
 }
 
+.picker-zone.dragging {
+  border-color: var(--accent);
+  border-style: solid;
+  background: var(--accent-soft);
+}
+
 .picker-zone.disabled {
   opacity: 0.5;
   cursor: not-allowed;
+}
+
+.picker-sub {
+  font-size: 13px;
+  font-weight: 400;
+  color: var(--text);
 }
 
 .picker-icon {
@@ -538,6 +557,40 @@ legend {
   font-size: 13px;
   font-weight: 700;
   color: var(--accent-hover);
+}
+
+/* PDF 无预览图：图标 + 文件名（FR-004） */
+.queue-thumb-pdf {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
+  padding: 4px;
+  overflow: hidden;
+  color: #b4472f;
+  background: #fdf0eb;
+}
+
+.queue-thumb-pdf .pdf-icon {
+  width: 18px;
+  height: 18px;
+}
+
+.queue-thumb-pdf .pdf-label {
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.queue-thumb-pdf .pdf-name {
+  max-width: 100%;
+  overflow: hidden;
+  font-size: 9px;
+  line-height: 1.2;
+  color: var(--text);
+  white-space: nowrap;
+  text-overflow: ellipsis;
 }
 
 .queue-meta {
@@ -697,6 +750,24 @@ legend {
   margin: 0 0 16px;
   font-size: 1.4rem;
   color: var(--text-h);
+}
+
+.review-title-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 12px;
+}
+
+.review-title-row .review-title {
+  margin: 0;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.review-meta {
+  margin: 4px 0 16px;
 }
 
 .review-layout {

@@ -14,6 +14,7 @@ import com.healthtrace.report.domain.ReportPolicy;
 import com.healthtrace.report.domain.ReportType;
 import com.healthtrace.report.domain.StorageStatus;
 import com.healthtrace.report.domain.VisibilityStatus;
+import com.healthtrace.report.mapper.ObservationMapper;
 import com.healthtrace.report.mapper.PhotoMapper;
 import com.healthtrace.report.mapper.ReportMapper;
 import com.healthtrace.report.service.ReportViews.PhotoUploadResult;
@@ -26,6 +27,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
@@ -39,6 +41,7 @@ import java.time.ZoneOffset;
 import java.time.temporal.ChronoUnit;
 import java.util.HexFormat;
 import java.util.List;
+import java.util.Objects;
 import java.util.UUID;
 
 /**
@@ -55,20 +58,25 @@ public class ReportUploadService {
 
     private static final Logger log = LoggerFactory.getLogger(ReportUploadService.class);
 
+    /** photo.original_filename 列宽（V12），按码点截断。 */
+    static final int ORIGINAL_FILENAME_MAX = 255;
+
     private final ReportAccess access;
     private final ReportMapper reportMapper;
     private final PhotoMapper photoMapper;
+    private final ObservationMapper observationMapper;
     private final ProfileMapper profileMapper;
     private final StorageService storageService;
     private final AuditService auditService;
     private final Clock clock;
 
     public ReportUploadService(ReportAccess access, ReportMapper reportMapper, PhotoMapper photoMapper,
-                               ProfileMapper profileMapper, StorageService storageService,
+                               ObservationMapper observationMapper, ProfileMapper profileMapper, StorageService storageService,
                                AuditService auditService, Clock clock) {
         this.access = access;
         this.reportMapper = reportMapper;
         this.photoMapper = photoMapper;
+        this.observationMapper = observationMapper;
         this.profileMapper = profileMapper;
         this.storageService = storageService;
         this.auditService = auditService;
@@ -86,10 +94,7 @@ public class ReportUploadService {
         }
         access.requireVerifiedEmail(accountId);
         String normalizedTitle = normalizeTitle(title);
-        if (examinationDate != null && examinationDate.isAfter(LocalDate.now(clock.withZone(ZoneOffset.ofHours(14))))) {
-            // 以全球最早时区为界，避免用户本地“今天”被误判为未来
-            throw validation("examinationDate", "PastOrPresent", "检查日期不能晚于今天");
-        }
+        requireNotFuture(examinationDate);
 
         ReportKind reportKind = parseKind(reportKindStr);
         String normalizedConclusion = normalizeConclusion(conclusionText);
@@ -139,6 +144,36 @@ public class ReportUploadService {
         }
         auditService.success(accountId, AuditAction.REPORT_CONFIRM, AuditService.token("report", reportId));
         report.setProcessingStatus(ProcessingStatus.CONFIRMED);
+        return toView(report);
+    }
+
+    /**
+     * 编辑报告元数据（标题、检查日期）：两个字段按请求原样写入（空白标题视为 null）。
+     * 任何处理状态均可；仅 NORMAL 可见性（回收站中、已删除、他人报告统一 404）。
+     * 校验规则与新建报告一致；已确认的检验报告必须保留检查日期（其正式结果依赖该日期参与趋势）。
+     * 检查日期变化时同步到该报告当前的正式结果行（与 FR-014 修改一致）；草稿行在确认时统一写入日期。
+     */
+    @Transactional
+    public ReportView updateMetadata(long accountId, long reportId, String title, LocalDate examinationDate) {
+        Report report = access.requireOwnedReport(accountId, reportId);
+        String normalizedTitle = normalizeTitle(title);
+        requireNotFuture(examinationDate);
+        if (examinationDate == null && report.getProcessingStatus() == ProcessingStatus.CONFIRMED
+                && report.getReportKind() == ReportKind.STRUCTURED) {
+            throw validation("examinationDate", "NotNull", "已确认的检验报告必须填写检查日期");
+        }
+        LocalDateTime now = now();
+        if (reportMapper.updateMetadata(reportId, report.getVersion(), normalizedTitle, examinationDate, now) != 1) {
+            throw new ApiException(ErrorCode.VERSION_CONFLICT);
+        }
+        if (!Objects.equals(report.getExaminationDate(), examinationDate)) {
+            observationMapper.updateFormalExaminationDate(reportId, examinationDate, now);
+        }
+        auditService.success(accountId, AuditAction.REPORT_METADATA_UPDATE, AuditService.token("report", reportId));
+        report.setTitle(normalizedTitle);
+        report.setExaminationDate(examinationDate);
+        report.setVersion(report.getVersion() + 1);
+        report.setUpdatedAt(now);
         return toView(report);
     }
 
@@ -202,6 +237,7 @@ public class ReportUploadService {
         photo.setContentDigest(digest);
         photo.setMediaType(originalType.mimeType());
         photo.setByteSize(original.getSize());
+        photo.setOriginalFilename(sanitizeFilename(original.getOriginalFilename()));
         if (hasPreview) {
             photo.setPreviewObjectKey(baseKey + "-preview" + extension(previewType));
             photo.setPreviewMediaType(previewType.mimeType());
@@ -295,6 +331,40 @@ public class ReportUploadService {
             case HEIC -> ".heic";
             case PDF -> ".pdf";
         };
+    }
+
+    private void requireNotFuture(LocalDate examinationDate) {
+        if (examinationDate != null && examinationDate.isAfter(LocalDate.now(clock.withZone(ZoneOffset.ofHours(14))))) {
+            // 以全球最早时区为界，避免用户本地“今天”被误判为未来
+            throw validation("examinationDate", "PastOrPresent", "检查日期不能晚于今天");
+        }
+    }
+
+    /**
+     * 客户端原始文件名清洗（仅展示用）：去掉任何路径部分（/ 与 \），删除控制字符，去首尾空白，
+     * 最多保留 255 个码点；结果为空返回 null。文件类型不依赖文件名。
+     */
+    static String sanitizeFilename(String raw) {
+        if (raw == null) {
+            return null;
+        }
+        int cut = Math.max(raw.lastIndexOf('/'), raw.lastIndexOf('\\'));
+        String name = cut >= 0 ? raw.substring(cut + 1) : raw;
+        StringBuilder sb = new StringBuilder(name.length());
+        name.codePoints()
+                .filter(cp -> !Character.isISOControl(cp)
+                        && Character.getType(cp) != Character.FORMAT
+                        && Character.getType(cp) != Character.LINE_SEPARATOR
+                        && Character.getType(cp) != Character.PARAGRAPH_SEPARATOR)
+                .forEach(sb::appendCodePoint);
+        String cleaned = sb.toString().strip();
+        if (cleaned.isEmpty()) {
+            return null;
+        }
+        if (cleaned.codePointCount(0, cleaned.length()) > ORIGINAL_FILENAME_MAX) {
+            cleaned = cleaned.substring(0, cleaned.offsetByCodePoints(0, ORIGINAL_FILENAME_MAX)).strip();
+        }
+        return cleaned.isEmpty() ? null : cleaned;
     }
 
     private static String normalizeTitle(String title) {

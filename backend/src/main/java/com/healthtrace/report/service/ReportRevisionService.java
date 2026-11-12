@@ -3,6 +3,7 @@ package com.healthtrace.report.service;
 import com.healthtrace.common.web.ApiException;
 import com.healthtrace.common.web.ErrorCode;
 import com.healthtrace.common.web.FieldErrorItem;
+import com.healthtrace.indicator.service.TempMetricService;
 import com.healthtrace.report.domain.Observation;
 import com.healthtrace.report.domain.ObservationStatus;
 import com.healthtrace.report.domain.Photo;
@@ -73,11 +74,13 @@ public class ReportRevisionService {
     private final OcrTextCipher cipher;
     private final JsonMapper jsonMapper;
     private final AuditService auditService;
+    private final TempMetricService tempMetricService;
     private final Clock clock;
 
     public ReportRevisionService(ReportAccess access, ReportMapper reportMapper, PhotoMapper photoMapper,
                                  ObservationMapper observationMapper, ReportRevisionMapper revisionMapper,
-                                 OcrTextCipher cipher, JsonMapper jsonMapper, AuditService auditService, Clock clock) {
+                                 OcrTextCipher cipher, JsonMapper jsonMapper, AuditService auditService,
+                                 TempMetricService tempMetricService, Clock clock) {
         this.access = access;
         this.reportMapper = reportMapper;
         this.photoMapper = photoMapper;
@@ -86,6 +89,7 @@ public class ReportRevisionService {
         this.cipher = cipher;
         this.jsonMapper = jsonMapper;
         this.auditService = auditService;
+        this.tempMetricService = tempMetricService;
         this.clock = clock;
     }
 
@@ -241,6 +245,8 @@ public class ReportRevisionService {
         }
         // 新行未带标准指标映射，这里按字典写入
         observationMapper.assignMetricDefinitions(reportId);
+        // 仍未映射的新行按“同名同单位”归入本档案已有的临时指标（FR-009，DEC-015）
+        tempMetricService.assignReport(report.getProfileId(), reportId);
 
         auditService.success(accountId, AuditAction.REPORT_REVISE, AuditService.token("report", reportId));
         return new ReviseResult(reportId, fromVersion + 1, newDate, revisionId,

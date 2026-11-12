@@ -13,8 +13,20 @@ export const COLORS = {
   unknown: '#8a7d73',
   band: 'rgba(46, 125, 50, 0.08)',
   bandLine: 'rgba(46, 125, 50, 0.55)',
-  axis: '#8a7d73',
-  split: '#eadfd5',
+  // 坐标轴、网格线和点描边随深色模式变化（NFR-006）；在生成 option 时读取当前主题
+  get axis(): string {
+    return isDarkTheme() ? '#b8aca2' : '#8a7d73'
+  },
+  get split(): string {
+    return isDarkTheme() ? '#4a3f38' : '#eadfd5'
+  },
+  get pointBorder(): string {
+    return isDarkTheme() ? '#2a2420' : '#fff'
+  },
+}
+
+function isDarkTheme(): boolean {
+  return typeof document !== 'undefined' && document.documentElement.dataset.theme === 'dark'
 }
 
 const DAY_MS = 24 * 60 * 60 * 1000
@@ -188,7 +200,7 @@ export function buildTrendOption(group: TrendGroup, range: DateRange, metricName
       value: [times[i]!, p.numericValue],
       ...flagSymbol(p.abnormalFlag),
       symbolSize: p.abnormalFlag === 'HIGH' || p.abnormalFlag === 'LOW' ? 12 : 9,
-      itemStyle: { color, borderColor: '#fff', borderWidth: 1 },
+      itemStyle: { color, borderColor: COLORS.pointBorder, borderWidth: 1 },
       point: p,
     })
   })
@@ -300,7 +312,7 @@ export function buildMultiSeriesOption(
       symbol: ['circle', 'rect', 'diamond', 'triangle', 'roundRect', 'pin'][idx % 6],
       symbolSize: 9,
       lineStyle: { color, width: 2 },
-      itemStyle: { color, borderColor: '#fff', borderWidth: 1 },
+      itemStyle: { color, borderColor: COLORS.pointBorder, borderWidth: 1 },
       emphasis: { focus: 'series' },
       data: data as LineData,
     }

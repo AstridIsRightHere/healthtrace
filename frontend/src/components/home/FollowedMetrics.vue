@@ -167,6 +167,7 @@ function cardLabel(c: FollowCard): string {
     <ManageFollowDialog
       v-if="managing"
       :initial-codes="follow.codes"
+      :profile-id="props.profileId"
       :saving="saving"
       :error="saveError"
       @save="saveManage"

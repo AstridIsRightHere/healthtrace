@@ -2,12 +2,18 @@
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="com.healthtrace.indicator.mapper.FollowedMetricMapper">
 
+    <!-- 两种关注目标恰好其一非空（V13 ck_followed_metric_target）；临时指标对外 code 为 TMP:{id} -->
     <select id="findByProfile" resultType="com.healthtrace.indicator.domain.FollowedMetric">
-        SELECT f.metric_code, d.standard_name, f.sort_order
+        SELECT COALESCE(f.metric_code, CONCAT('TMP:', f.temp_metric_id)) AS metric_code,
+               f.temp_metric_id,
+               COALESCE(d.standard_name, t.display_name) AS standard_name,
+               CASE WHEN f.temp_metric_id IS NULL THEN d.standard_unit ELSE t.unit_text END AS unit,
+               f.sort_order
         FROM followed_metric f
-                 JOIN metric_definition d ON d.code = f.metric_code
+                 LEFT JOIN metric_definition d ON d.code = f.metric_code
+                 LEFT JOIN temp_metric t ON t.id = f.temp_metric_id
         WHERE f.profile_id = #{profileId}
-        ORDER BY f.sort_order, f.metric_code
+        ORDER BY f.sort_order, f.id
     </select>
 
     <delete id="deleteByProfile">
@@ -16,10 +22,32 @@
 
     <!-- 整表替换的插入步：sort_order 取列表下标 -->
     <insert id="insertAll">
-        INSERT INTO followed_metric (profile_id, metric_code, sort_order, created_at)
+        INSERT INTO followed_metric (profile_id, metric_code, temp_metric_id, sort_order, created_at)
         VALUES
         <foreach collection="codes" item="code" index="idx" separator=",">
-            (#{profileId}, #{code}, #{idx}, #{createdAt})
+            <choose>
+                <when test="code.startsWith('TMP:')">
+                    (#{profileId}, NULL, CAST(SUBSTRING(#{code}, 5) AS UNSIGNED), #{idx}, #{createdAt})
+                </when>
+                <otherwise>
+                    (#{profileId}, #{code}, NULL, #{idx}, #{createdAt})
+                </otherwise>
+            </choose>
         </foreach>
     </insert>
+
+    <select id="countByProfile" resultType="int">
+        SELECT COUNT(*) FROM followed_metric WHERE profile_id = #{profileId}
+    </select>
+
+    <insert id="appendTempMetric">
+        INSERT INTO followed_metric (profile_id, temp_metric_id, sort_order, created_at)
+        SELECT #{profileId}, #{tempMetricId}, IFNULL(MAX(sort_order), -1) + 1, #{createdAt}
+        FROM followed_metric
+        WHERE profile_id = #{profileId}
+    </insert>
+
+    <delete id="deleteByTempMetric">
+        DELETE FROM followed_metric WHERE temp_metric_id = #{tempMetricId}
+    </delete>
 </mapper>

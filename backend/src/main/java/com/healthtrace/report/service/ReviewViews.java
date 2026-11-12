@@ -50,6 +50,9 @@ public final class ReviewViews {
 
     /**
      * @param confidence 供应商真实置信度（0～1）；未返回或已被用户修改时为 null
+     * @param metricCode 已映射的标准指标 code，未映射为 null
+     * @param tempMetricCode 已归入的本档案临时指标 "TMP:{id}"，否则为 null（FR-009）
+     * @param tempMetricName 临时指标展示名，否则为 null
      */
     public record ObservationView(
             long id,
@@ -61,7 +64,10 @@ public final class ReviewViews {
             AbnormalFlag abnormalFlag,
             BigDecimal confidence,
             Long sourcePhotoId,
-            int rowOrder) {
+            int rowOrder,
+            String metricCode,
+            String tempMetricCode,
+            String tempMetricName) {
     }
 
     /**

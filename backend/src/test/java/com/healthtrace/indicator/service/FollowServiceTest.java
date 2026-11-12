@@ -5,6 +5,7 @@ import com.healthtrace.common.web.ErrorCode;
 import com.healthtrace.indicator.domain.FollowedMetric;
 import com.healthtrace.indicator.domain.MetricDefinition;
 import com.healthtrace.indicator.mapper.FollowedMetricMapper;
+import com.healthtrace.indicator.mapper.TempMetricMapper;
 import com.healthtrace.indicator.mapper.TrendMapper;
 import com.healthtrace.indicator.service.FollowViews.FollowedMetricView;
 import com.healthtrace.indicator.service.FollowViews.MetricDefinitionView;
@@ -54,7 +55,7 @@ class FollowServiceTest {
         trendMapper = mock(TrendMapper.class);
         profileMapper = mock(ProfileMapper.class);
         auditService = mock(AuditService.class);
-        service = new FollowService(followedMetricMapper, trendMapper, profileMapper, auditService, CLOCK);
+        service = new FollowService(followedMetricMapper, trendMapper, mock(TempMetricMapper.class), profileMapper, auditService, CLOCK);
         given(profileMapper.findActiveByAccountAndProfile(ACCOUNT, PROFILE)).willReturn(new ProfileRecord());
         given(trendMapper.findAllDefinitions()).willReturn(definitions("WBC", "HGB", "PLT", "ALT", "AST", "CREA"));
     }
@@ -95,7 +96,7 @@ class FollowServiceTest {
     void listMapsRows() {
         given(followedMetricMapper.findByProfile(PROFILE)).willReturn(List.of(row("HGB", 0), row("WBC", 1)));
         assertThat(service.list(ACCOUNT, PROFILE)).containsExactly(
-                new FollowedMetricView("HGB", "HGB名称", 0), new FollowedMetricView("WBC", "WBC名称", 1));
+                new FollowedMetricView("HGB", "HGB名称", 0, null, false), new FollowedMetricView("WBC", "WBC名称", 1, null, false));
     }
 
     @Test

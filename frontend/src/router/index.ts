@@ -45,7 +45,26 @@ const router = createRouter({
           // 未建档的账号同样可以注销（FR-017）
           meta: { tab: 'me', allowWithoutProfile: true },
         },
+        {
+          path: 'display',
+          name: 'display-settings',
+          component: () => import('../views/DisplaySettingsView.vue'),
+          meta: { tab: 'me', allowWithoutProfile: true },
+        },
       ],
+    },
+    {
+      // 隐私政策与数据授权说明：注册前也需要能阅读，故为公开页（不含任何用户数据）
+      path: '/privacy',
+      name: 'privacy-policy',
+      component: () => import('../views/PrivacyPolicyView.vue'),
+      meta: { public: true },
+    },
+    {
+      path: '/data-authorization',
+      name: 'data-authorization',
+      component: () => import('../views/DataAuthorizationView.vue'),
+      meta: { public: true },
     },
     {
       path: '/login',

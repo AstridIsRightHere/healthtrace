@@ -20,8 +20,12 @@
         supersedes_id, created_revision_id, retired_revision_id, retired_at
     </sql>
 
+    <!-- 附带指标映射（只读展示）：标准 code 与临时指标 id / 展示名（FR-009） -->
     <select id="findByReport" resultType="com.healthtrace.report.domain.Observation">
-        SELECT <include refid="columns"/>
+        SELECT <include refid="columns"/>,
+               (SELECT d.code FROM metric_definition d WHERE d.id = observation.metric_definition_id) AS metric_code,
+               temp_metric_id,
+               (SELECT t.display_name FROM temp_metric t WHERE t.id = observation.temp_metric_id) AS temp_metric_name
         FROM observation
         WHERE report_id = #{reportId} AND status = #{status}
         ORDER BY row_order, id

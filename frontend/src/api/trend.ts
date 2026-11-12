@@ -12,7 +12,7 @@ export interface MetricSummary {
   count: number
   latestDate: string | null
   groupCount: number
-  /** false：暂未纳入标准字典、按报告原名汇总的项目（code 以 RAW: 开头） */
+  /** false：暂未纳入标准字典的项目（RAW: 按报告原名汇总；TMP: 本档案临时指标，FR-009） */
   standard: boolean
 }
 

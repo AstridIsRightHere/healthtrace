@@ -115,9 +115,35 @@ async function onLogout(): Promise<void> {
           </RouterLink>
         </li>
         <li>
+          <RouterLink class="me-menu-item" :to="{ name: 'display-settings' }" data-testid="display-link">
+            <span class="me-menu-label">显示设置</span>
+            <span class="field-hint">深色模式与字号大小</span>
+            <span class="me-menu-arrow" aria-hidden="true">›</span>
+          </RouterLink>
+        </li>
+        <li>
           <RouterLink class="me-menu-item" :to="{ name: 'settings' }" data-testid="settings-link">
             <span class="me-menu-label">账号设置</span>
             <span class="field-hint">账号信息与注销</span>
+            <span class="me-menu-arrow" aria-hidden="true">›</span>
+          </RouterLink>
+        </li>
+      </ul>
+    </section>
+
+    <section class="home-card me-menu-card" aria-label="隐私与授权">
+      <ul class="me-menu">
+        <li>
+          <RouterLink class="me-menu-item" :to="{ name: 'privacy-policy' }" data-testid="privacy-link">
+            <span class="me-menu-label">隐私政策</span>
+            <span class="field-hint">我们收集什么、如何保护与删除</span>
+            <span class="me-menu-arrow" aria-hidden="true">›</span>
+          </RouterLink>
+        </li>
+        <li>
+          <RouterLink class="me-menu-item" :to="{ name: 'data-authorization' }" data-testid="authorization-link">
+            <span class="me-menu-label">数据授权说明</span>
+            <span class="field-hint">识别服务如何处理照片、如何撤回授权</span>
             <span class="me-menu-arrow" aria-hidden="true">›</span>
           </RouterLink>
         </li>
@@ -131,6 +157,7 @@ async function onLogout(): Promise<void> {
     <ManageFollowDialog
       v-if="managing"
       :initial-codes="follow.codes"
+      :profile-id="profile.profile?.id ?? null"
       :saving="saving"
       :error="saveError"
       @save="saveManage"

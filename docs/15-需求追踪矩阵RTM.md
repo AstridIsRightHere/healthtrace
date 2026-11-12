@@ -66,7 +66,7 @@
 | FR-004 | [19 数据字典：PHOTO.original_filename](19-数据字典.md) | V12 记录清洗后的原始文件名；档案列表 PDF 显示占位图标与文件名；上传页支持拖拽（前端 MIME/大小预检，后端魔数校验不变） |
 | FR-013 | [07 页面清单：PG-011](07-页面清单与结构图.md) | 关联报告时检查日早于就诊 30 天以上或晚 90 天以上给出非阻断提醒 |
 
-## 实现与自动化测试追踪（2026-10-29）
+## 实现与自动化测试追踪（2026-10-29 建立，2026-11-12 更新）
 
 本节记录已合入代码和自动化测试，只作开发证据，**不替代主验收**，上方 TC 状态不变。接口字段以运行时 Swagger/OpenAPI（dev 环境 `/swagger-ui/index.html`）为准。
 
@@ -78,6 +78,16 @@
 | NFR-005 性能 | 趋势查询 from/to 下界在 SQL 过滤；`/metrics` 用 GROUP BY 计数；报告与就诊列表 `limit` + `total` | MysqlIntegrationTest、ListPagingIntegrationTest（Testcontainers MySQL 8.4） | 首页 API 请求数从每卡一次趋势请求降为固定 6 个；尚无 DEC-009 阈值实测记录 |
 | NFR-008 可维护 | 错误响应采用 RFC 9457 ProblemDetail（`application/problem+json`，扩展字段 code/traceId/fieldErrors/retryable）；Swagger 仅 dev 开启；大 Service 按职责拆分 | 全量后端测试 + 前端 lint/Vitest/build（CI） | 仍为单体，未引入新基础设施 |
 | NFR-010 日志审计 | `TraceIdFilter` 写 MDC 并返回 `X-Trace-Id`，错误体 traceId 与日志一致；报告修改写 audit_event | GlobalExceptionHandler / TraceIdFilter 相关测试、ReportRevisionService 测试 | 日志只记 traceId 与异常类别，不记录病历正文 |
+| FR-001/002 账号 | `account` 模块；V1 account/invitation/auth_token；`SmtpAccountMailSender`（dev 写日志） | AccountSecurityWebTest、AccountServiceTest、AccountMailSenderSelectionTest | 邀请注册、邮箱验证、登录锁定、密码找回已实现；真实邮件供应商未定（DEC-006） |
+| FR-003 档案授权 | `profile` 模块；V2 patient_profile/profile_access | ProfileWebTest、ProfileServiceTest | 一账号一患者、授权声明；人工撤回授权渠道未实现 |
+| FR-004～008 上传/OCR/确认/字典 | `report` 模块；V3～V5、V11、V12；`BaiduOcrServiceImpl`、`OcrJobProcessor` | ReviewWebTest、BaiduMedicalReportParserTest、OcrJobProcessorTest、MysqlIntegrationTest | 多图/PDF、重复提示、OCR 草稿与手填、逐项确认、18 项字典已实现 |
+| FR-010/011 趋势与对比 | `indicator/api/TrendController`、`ReportComparisonController`；前端 TrendView、ReportCompareView | TrendWebTest、TrendServiceTest、trendOption/reportCompare 单测 | 可比组、五档区间、参考范围、前零规则已实现；DEC-009 性能未实测 |
+| FR-013 就诊时间线 | `visit` 模块；V6 visit/visit_report；前端 VisitView、TimelineView | VisitWebTest、VisitServiceTest、visit.test.ts | 就诊 CRUD、报告双向关联、30/90 天跨度提醒 |
+| FR-014 修改留痕 | V7 report_revision/audit_event、V10 observation_revision；`ReportRevisionController` | ObservationRevisionIntegrationTest、ReportRevisionService 测试 | 正式值修改留前后值与历史；报告元数据修改只记审计动作，无前后值 |
+| FR-015 待处理 | 首页 PendingReportList；OCR 任务有界重试 | OcrJobProcessor 测试 | 待确认/失败报告可继续或重新识别 |
+| FR-016 列表移除/彻删 | V9 deletion_ledger/storage_purge_task；`ReportListRemovalController`、`ReportDeletionController`；RecycleBinView | ReportPurgeIntegrationTest、ReportRecycleBinIntegrationTest | 回收站与彻底删除已实现；备份与供应商副本清除未实现 |
+| FR-017 注销 | `AccountClosureController`；SettingsView 注销区 | AccountClosureWebTest、AccountClosureServiceTest、AccountClosureIntegrationTest | 注销已实现；人工撤回授权未实现 |
+| FR-018 管理员 | — | — | 未实现 |
 
 ## 状态与变更规则
 

@@ -1,0 +1,113 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.healthtrace.indicator.mapper.TempMetricMapper">
+
+    <sql id="candidateColumns">
+        o.id AS observation_id, o.report_id, r.profile_id, o.status, r.processing_status, r.visibility_status,
+        o.metric_definition_id, o.temp_metric_id, o.original_name, o.unit_text
+    </sql>
+
+    <select id="findCandidate" resultType="com.healthtrace.indicator.domain.TempMetricCandidate">
+        SELECT <include refid="candidateColumns"/>
+        FROM observation o
+                 JOIN report r ON r.id = o.report_id
+        WHERE o.id = #{observationId}
+    </select>
+
+    <!-- 含列表移除的报告：恢复后其结果也应归入同一临时指标 -->
+    <select id="findUnassignedFormalByProfile" resultType="com.healthtrace.indicator.domain.TempMetricCandidate">
+        SELECT <include refid="candidateColumns"/>
+        FROM observation o
+                 JOIN report r ON r.id = o.report_id
+        WHERE r.profile_id = #{profileId}
+          AND r.processing_status = 'CONFIRMED'
+          AND o.status = 'FORMAL'
+          AND o.metric_definition_id IS NULL
+          AND o.temp_metric_id IS NULL
+        ORDER BY o.id
+    </select>
+
+    <select id="findUnassignedFormalByReport" resultType="com.healthtrace.indicator.domain.TempMetricCandidate">
+        SELECT <include refid="candidateColumns"/>
+        FROM observation o
+                 JOIN report r ON r.id = o.report_id
+        WHERE o.report_id = #{reportId}
+          AND o.status = 'FORMAL'
+          AND o.metric_definition_id IS NULL
+          AND o.temp_metric_id IS NULL
+        ORDER BY o.id
+    </select>
+
+    <sql id="metricColumns">
+        t.id, t.profile_id, t.display_name, t.name_key, t.unit_key, t.unit_text, t.origin_observation_id,
+        t.mapping_status, t.created_at, t.updated_at
+    </sql>
+
+    <!-- 结果数只计已确认、正常可见报告中的正式结果，与趋势口径一致 -->
+    <sql id="viewColumns">
+        <include refid="metricColumns"/>,
+        (SELECT COUNT(*)
+         FROM observation o
+                  JOIN report r ON r.id = o.report_id
+         WHERE o.temp_metric_id = t.id
+           AND o.status = 'FORMAL'
+           AND r.processing_status = 'CONFIRMED'
+           AND r.visibility_status = 'NORMAL') AS observation_count,
+        EXISTS (SELECT 1 FROM followed_metric f WHERE f.temp_metric_id = t.id) AS followed
+    </sql>
+
+    <select id="findByKey" resultType="com.healthtrace.indicator.domain.TempMetric">
+        SELECT <include refid="metricColumns"/>
+        FROM temp_metric t
+        WHERE t.profile_id = #{profileId} AND t.name_key = #{nameKey} AND t.unit_key = #{unitKey}
+    </select>
+
+    <select id="findByProfile" resultType="com.healthtrace.indicator.domain.TempMetric">
+        SELECT <include refid="viewColumns"/>
+        FROM temp_metric t
+        WHERE t.profile_id = #{profileId}
+        ORDER BY t.id
+    </select>
+
+    <select id="findById" resultType="com.healthtrace.indicator.domain.TempMetric">
+        SELECT <include refid="viewColumns"/>
+        FROM temp_metric t
+        WHERE t.profile_id = #{profileId} AND t.id = #{id}
+    </select>
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id" keyColumn="id">
+        INSERT INTO temp_metric (profile_id, display_name, name_key, unit_key, unit_text, origin_observation_id,
+                                 mapping_status, created_at, updated_at)
+        VALUES (#{profileId}, #{displayName}, #{nameKey}, #{unitKey}, #{unitText}, #{originObservationId},
+                #{mappingStatus}, #{createdAt}, #{updatedAt})
+    </insert>
+
+    <update id="assignObservations">
+        UPDATE observation
+        SET temp_metric_id = #{tempMetricId}, updated_at = #{updatedAt}
+        WHERE metric_definition_id IS NULL
+          AND temp_metric_id IS NULL
+          AND id IN
+        <foreach collection="ids" item="id" open="(" separator="," close=")">#{id}</foreach>
+    </update>
+
+    <update id="unassignObservations">
+        UPDATE observation SET temp_metric_id = NULL WHERE temp_metric_id = #{tempMetricId}
+    </update>
+
+    <update id="markMerged">
+        UPDATE temp_metric SET mapping_status = 'MERGED', updated_at = #{updatedAt}
+        WHERE id = #{id} AND mapping_status = 'UNMERGED'
+    </update>
+
+    <select id="findKeysByProfile" resultType="com.healthtrace.indicator.domain.TempMetric">
+        SELECT <include refid="metricColumns"/>
+        FROM temp_metric t
+        WHERE t.profile_id = #{profileId}
+        ORDER BY t.id
+    </select>
+
+    <delete id="deleteById">
+        DELETE FROM temp_metric WHERE profile_id = #{profileId} AND id = #{id}
+    </delete>
+</mapper>

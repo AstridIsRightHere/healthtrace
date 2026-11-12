@@ -7,6 +7,7 @@ import com.healthtrace.report.domain.Observation;
 import com.healthtrace.report.domain.ObservationStatus;
 import com.healthtrace.report.domain.Photo;
 import com.healthtrace.report.domain.ProcessingStatus;
+import com.healthtrace.indicator.service.TempMetricService;
 import com.healthtrace.report.domain.Report;
 import com.healthtrace.report.domain.ReportRevision;
 import com.healthtrace.report.mapper.ObservationMapper;
@@ -81,12 +82,13 @@ class ReportRevisionServiceTest {
         byte[] key = Base64.getDecoder().decode("MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=");
         OcrTextCipher cipher = new OcrTextCipher(new FieldCipher(key));
         service = new ReportRevisionService(access, reportMapper, photoMapper, observationMapper, revisionMapper,
-                cipher, JsonMapper.builder().build(), auditService, clock);
+                cipher, JsonMapper.builder().build(), auditService, mock(TempMetricService.class), clock);
     }
 
     private Report confirmed(long version) {
         Report r = new Report();
         r.setId(21L);
+        r.setProfileId(11L);
         r.setProcessingStatus(ProcessingStatus.CONFIRMED);
         r.setVersion(version);
         r.setExaminationDate(DATE);

@@ -5,6 +5,7 @@ import com.healthtrace.common.web.ErrorCode;
 import com.healthtrace.common.web.FieldErrorItem;
 import com.healthtrace.indicator.domain.MetricAggregate;
 import com.healthtrace.indicator.domain.MetricDefinition;
+import com.healthtrace.indicator.domain.TempMetric;
 import com.healthtrace.indicator.domain.TrendObservation;
 import com.healthtrace.indicator.mapper.TrendMapper;
 import com.healthtrace.indicator.service.TrendViews.Change;
@@ -55,6 +56,9 @@ public class TrendService {
     static final String NOTE_SAME_DAY = "SAME_DAY_AMBIGUOUS";
     /** 未纳入标准字典的项目 code 前缀（RAW: + 归一后的报告原名）。 */
     public static final String RAW_PREFIX = "RAW:";
+    /** 本档案临时指标的 code 前缀（TMP: + temp_metric.id，FR-009）。 */
+    public static final String TEMP_PREFIX = "TMP:";
+    static final String TEMP_NOTE = "该项目为本档案的临时指标，按报告原名与单位归并，仅供查看，不代表医学等价。";
     /** 最新值摘要一次最多查询的指标数（与关注列表上限一致）。 */
     static final int MAX_SUMMARY_CODES = 20;
 
@@ -86,6 +90,7 @@ public class TrendService {
         for (MetricDefinition d : trendMapper.findAllDefinitions()) {
             definitions.put(d.getCode(), d);
         }
+        Map<String, TempMetric> temps = null;
         List<MetricSummary> result = new ArrayList<>();
         for (Map.Entry<String, List<MetricAggregate>> e : byCode.entrySet()) {
             List<MetricAggregate> parts = e.getValue();
@@ -94,6 +99,19 @@ public class TrendService {
                     .max(Comparator.naturalOrder()).orElse(null);
             Set<String> keys = new HashSet<>();
             parts.forEach(a -> keys.add(groupKey(a.getUnitText(), a.getSpecimenText(), a.getMethodText())));
+            if (e.getKey().startsWith(TEMP_PREFIX)) {
+                // 临时指标：名称与单位取临时指标自身的展示写法
+                if (temps == null) {
+                    temps = tempMetricsByCode(profileId);
+                }
+                TempMetric t = temps.get(e.getKey());
+                if (t == null) {
+                    continue;
+                }
+                result.add(new MetricSummary(e.getKey(), t.getDisplayName(), blankToEmpty(t.getUnitText()), count,
+                        latest, keys.size(), false));
+                continue;
+            }
             if (e.getKey().startsWith(RAW_PREFIX)) {
                 // 未纳入标准字典的项目：按报告原名汇总，单位取最近一次（原排序最后一行）的写法，仅作展示
                 MetricAggregate last = parts.stream()
@@ -137,28 +155,64 @@ public class TrendService {
         for (MetricDefinition d : trendMapper.findAllDefinitions()) {
             definitions.put(d.getCode(), d);
         }
-        List<MetricDefinition> targets = new ArrayList<>();
+        Map<String, TempMetric> temps = null;
+        List<MetricDefinition> standardTargets = new ArrayList<>();
+        List<TempMetric> tempTargets = new ArrayList<>();
         for (String code : requested) {
+            if (code.startsWith(TEMP_PREFIX)) {
+                if (temps == null) {
+                    temps = tempMetricsByCode(profileId);
+                }
+                TempMetric t = temps.get(code);
+                if (t == null) {
+                    throw validation("codes", "UnknownMetric", "不支持的指标：" + code);
+                }
+                tempTargets.add(t);
+                continue;
+            }
             MetricDefinition d = definitions.get(code);
             if (d == null) {
                 throw validation("codes", "UnknownMetric", "不支持的指标：" + code);
             }
-            targets.add(d);
+            standardTargets.add(d);
         }
         LocalDate today = LocalDate.now(clock.withZone(BUSINESS_ZONE));
         Map<String, List<TrendObservation>> byCode = new HashMap<>();
-        for (TrendObservation o : trendMapper.findRecentExactByMetrics(profileId,
-                targets.stream().map(MetricDefinition::getId).toList(), today)) {
-            byCode.computeIfAbsent(o.getMetricCode(), k -> new ArrayList<>()).add(o);
+        if (!standardTargets.isEmpty()) {
+            for (TrendObservation o : trendMapper.findRecentExactByMetrics(profileId,
+                    standardTargets.stream().map(MetricDefinition::getId).toList(), today)) {
+                byCode.computeIfAbsent(o.getMetricCode(), k -> new ArrayList<>()).add(o);
+            }
+        }
+        if (!tempTargets.isEmpty()) {
+            // 临时指标结果量小，直接取全部正式结果计算（与趋势接口同一套分组规则）
+            for (TrendObservation o : trendMapper.findFormalByTempMetrics(profileId,
+                    tempTargets.stream().map(TempMetric::getId).toList(), today)) {
+                byCode.computeIfAbsent(o.getMetricCode(), k -> new ArrayList<>()).add(o);
+            }
         }
         DateRange all = new DateRange(LocalDate.MIN, today);
         List<MetricLatestSummary> items = new ArrayList<>();
-        for (MetricDefinition d : targets) {
-            List<TrendObservation> rows = byCode.getOrDefault(d.getCode(), List.of());
+        for (String code : requested) {
+            String name;
+            String unit;
+            String standardUnit;
+            MetricDefinition d = definitions.get(code);
+            if (code.startsWith(TEMP_PREFIX)) {
+                TempMetric t = temps.get(code);
+                name = t.getDisplayName();
+                unit = blankToEmpty(t.getUnitText());
+                standardUnit = null;
+            } else {
+                name = d.getStandardName();
+                unit = d.getStandardUnit();
+                standardUnit = d.getStandardUnit();
+            }
+            List<TrendObservation> rows = byCode.getOrDefault(code, List.of());
             Map<Long, TrendObservation> byId = new HashMap<>();
             rows.forEach(o -> byId.put(o.getObservationId(), o));
             TrendPoint best = null;
-            for (TrendGroup g : buildGroups(rows, d.getStandardUnit(), all)) {
+            for (TrendGroup g : buildGroups(rows, standardUnit, all)) {
                 for (TrendPoint p : g.points()) {
                     if (best == null || p.examinationDate().isAfter(best.examinationDate())
                             || (p.examinationDate().equals(best.examinationDate())
@@ -175,12 +229,21 @@ public class TrendService {
                         best.originalValue(), best.numericValue(), blankToNull(o.getUnitText()), best.abnormalFlag());
                 change = best.change();
             }
-            items.add(new MetricLatestSummary(d.getCode(), d.getStandardName(), d.getStandardUnit(), latest, change));
+            items.add(new MetricLatestSummary(code, name, unit, latest, change));
         }
         return new MetricLatestSummaries(items);
     }
 
-    /** 列表/趋势共用的归组 code：已映射用标准 code，未映射用 RAW: + 归一后的原名。 */
+    /** 本档案临时指标，按 TMP:{id} 索引。 */
+    private Map<String, TempMetric> tempMetricsByCode(long profileId) {
+        Map<String, TempMetric> map = new HashMap<>();
+        for (TempMetric t : trendMapper.findTempMetricsByProfile(profileId)) {
+            map.put(tempCode(t.getId()), t);
+        }
+        return map;
+    }
+
+    /** 列表/趋势共用的归组 code：已映射用标准 code，临时指标用 TMP:{id}，其余用 RAW: + 归一后的原名。 */
     public static String metricKey(TrendObservation o) {
         if (o.getMetricCode() != null && !o.getMetricCode().isBlank()) {
             return o.getMetricCode();
@@ -196,6 +259,23 @@ public class TrendService {
         return name.replaceAll("[\\s\\u3000\\u00A0★☆*※]+", "")
                 .replace('（', '(').replace('）', ')')
                 .toUpperCase(java.util.Locale.ROOT);
+    }
+
+    public static String tempCode(long tempMetricId) {
+        return TEMP_PREFIX + tempMetricId;
+    }
+
+    /** "TMP:{正整数}" 返回 id，其他写法（含非临时指标 code）返回 null。 */
+    public static Long parseTempCode(String code) {
+        if (code == null || !code.startsWith(TEMP_PREFIX)) {
+            return null;
+        }
+        String digits = code.substring(TEMP_PREFIX.length());
+        if (digits.isEmpty() || digits.length() > 18 || !digits.chars().allMatch(c -> c >= '0' && c <= '9')) {
+            return null;
+        }
+        long id = Long.parseLong(digits);
+        return id > 0 ? id : null;
     }
 
     public static String displayName(String name) {
@@ -216,6 +296,9 @@ public class TrendService {
         String code = metricCode == null ? "" : metricCode.trim();
         if (code.startsWith(RAW_PREFIX)) {
             return getRawTrend(profileId, code, range);
+        }
+        if (code.startsWith(TEMP_PREFIX)) {
+            return getTempTrend(profileId, code, range);
         }
         MetricDefinition definition = code.isEmpty() ? null : trendMapper.findDefinitionByCode(code);
         if (definition == null) {
@@ -252,6 +335,23 @@ public class TrendService {
         List<TrendGroup> groups = buildGroups(rows, null, range);
         MetricInfo metric = new MetricInfo(code, displayName(last.getOriginalName()),
                 blankToEmpty(last.getUnitText()), "该项目暂未纳入标准指标字典，按报告原名汇总，仅供查看，不与其他名称合并。");
+        return new TrendView(metric, range, groups, groups.size() > 1);
+    }
+
+    /**
+     * 本档案临时指标（FR-009）：只取映射到该临时指标的正式结果；没有标准单位，可比组仍按单位/标本/方法区分。
+     * 他人档案或不存在的临时指标与未知 code 同样处理（400 UNKNOWN）。
+     */
+    private TrendView getTempTrend(long profileId, String code, DateRange range) {
+        Long id = parseTempCode(code);
+        TempMetric temp = id == null ? null : tempMetricsByCode(profileId).get(tempCode(id));
+        if (temp == null) {
+            throw validation("metricCode", "UNKNOWN", "不支持的指标");
+        }
+        List<TrendObservation> rows = trendMapper.findFormalByTempMetrics(profileId, List.of(id), range.to());
+        List<TrendGroup> groups = buildGroups(rows, null, range);
+        MetricInfo metric = new MetricInfo(tempCode(id), temp.getDisplayName(), blankToEmpty(temp.getUnitText()),
+                TEMP_NOTE);
         return new TrendView(metric, range, groups, groups.size() > 1);
     }
 

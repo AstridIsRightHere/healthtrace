@@ -72,7 +72,7 @@
 
 | 需求 | 实现位置 | 自动化测试 | 说明 |
 | --- | --- | --- | --- |
-| FR-009 关注排序（部分） | V8 `followed_metric` 表；`indicator/api/FollowController`；前端 `stores/follow.ts`、`components/home/ManageFollowDialog.vue` | FollowWebTest、FollowServiceTest、MysqlIntegrationTest、FollowedMetrics.test.ts | 已实现标准指标关注、整表保存顺序、默认 6 项和管理弹窗；搜索、临时指标、归并提示与撤销尚未实现 |
+| FR-009 关注排序与临时指标（部分） | V8 `followed_metric`、V13 `temp_metric`；`indicator/api/FollowController`、临时指标接口 `temporary-metrics`；前端 `stores/follow.ts`、`components/home/ManageFollowDialog.vue`、`components/review/TempMetricPanel.vue` | FollowWebTest、FollowServiceTest、MysqlIntegrationTest、FollowedMetrics.test.ts、tempMetric.test.ts、后端临时指标测试（见 PR）、E2E mvp-experience-e2e | 标准指标与本档临时指标关注、整表保存顺序、默认 6 项；核对页设为临时指标并关注，同名同单位自动归并；异名同单位强提示、手动合并/分开与撤销未实现 |
 | FR-012 首页 | `metric-summaries` 批量接口；`components/home/*` 分别加载 | TrendWebTest、TrendServiceTest、FollowedMetrics.test.ts | 关注卡单次批量请求（每次固定 2 条 SQL）；加载失败显示“加载失败，请点击重试”，不再吞错 |
 | NFR-001 权限隔离 | 各 Service 按账号校验档案归属，越权统一 404 HT-3001 | 各 *WebTest / *ServiceTest 越权用例 | 跨账号访问返回与不存在一致 |
 | NFR-005 性能 | 趋势查询 from/to 下界在 SQL 过滤；`/metrics` 用 GROUP BY 计数；报告与就诊列表 `limit` + `total` | MysqlIntegrationTest、ListPagingIntegrationTest（Testcontainers MySQL 8.4） | 首页 API 请求数从每卡一次趋势请求降为固定 6 个；尚无 DEC-009 阈值实测记录 |
@@ -86,8 +86,11 @@
 | FR-014 修改留痕 | V7 report_revision/audit_event、V10 observation_revision；`ReportRevisionController` | ObservationRevisionIntegrationTest、ReportRevisionService 测试 | 正式值修改留前后值与历史；报告元数据修改只记审计动作，无前后值 |
 | FR-015 待处理 | 首页 PendingReportList；OCR 任务有界重试 | OcrJobProcessor 测试 | 待确认/失败报告可继续或重新识别 |
 | FR-016 列表移除/彻删 | V9 deletion_ledger/storage_purge_task；`ReportListRemovalController`、`ReportDeletionController`；RecycleBinView | ReportPurgeIntegrationTest、ReportRecycleBinIntegrationTest | 回收站与彻底删除已实现；备份与供应商副本清除未实现 |
-| FR-017 注销 | `AccountClosureController`；SettingsView 注销区 | AccountClosureWebTest、AccountClosureServiceTest、AccountClosureIntegrationTest | 注销已实现；人工撤回授权未实现 |
+| FR-017 注销 | `AccountClosureController`；SettingsView 注销区；DataAuthorizationView 撤回说明 | AccountClosureWebTest、AccountClosureServiceTest、AccountClosureIntegrationTest | 注销已实现；撤回方式已在“数据授权说明”页写明，人工撤回渠道待 DEC-016 |
 | FR-018 管理员 | — | — | 未实现 |
+| NFR-006 主题与字号（部分） | `utils/appearance.ts`（html `data-theme` / `data-font-size`，localStorage `ht.theme`、`ht.fontSize`）；`DisplaySettingsView`；style.css 全站 rem 与深色变量 | appearance.test.ts、E2E mvp-experience-e2e（390/1280） | 跟随系统/浅色/深色与 14/16/20/24 px 已实现；VoiceOver/TalkBack 真机测试未做 |
+| PWA（技术基线） | vite-plugin-pwa（generateSW，`registerType: prompt`）；`utils/pwa.ts`、`utils/installPrompt.ts`、`PwaPrompt.vue` | installPrompt.test.ts、构建产物 sw.js 检查、E2E manifest 检查 | 只预缓存静态资源；`/api/` 排除于导航回退且无运行时缓存，医疗数据不进缓存 |
+| PG-013 隐私与 OCR 说明 | `PrivacyPolicyView`（/privacy）、`DataAuthorizationView`（/data-authorization），我的页入口 | E2E mvp-experience-e2e | 文本为开发阶段草稿，上线前需合规审阅（docs/10） |
 
 ## 状态与变更规则
 

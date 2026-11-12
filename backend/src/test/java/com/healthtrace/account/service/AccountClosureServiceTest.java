@@ -123,6 +123,7 @@ class AccountClosureServiceTest {
         order.verify(reportPurger).purge(2L);
         order.verify(closureMapper).deleteVisitsByProfile(100L);
         order.verify(closureMapper).deleteFollowedMetricsByProfile(100L);
+        order.verify(closureMapper).deleteTempMetricsByProfile(100L);
         order.verify(closureMapper).deleteConsentsByProfile(100L);
         order.verify(closureMapper).deleteAccessByProfile(100L);
         order.verify(closureMapper).deleteProfile(100L);

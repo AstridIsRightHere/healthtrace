@@ -16,6 +16,9 @@ import { reportKindLabel } from '../utils/reportKind'
 import { formatVisitDate } from '../utils/visit'
 import DeleteReportDialog from '../components/home/DeleteReportDialog.vue'
 import EditReportDialog from '../components/report/EditReportDialog.vue'
+import TempMetricPanel from '../components/review/TempMetricPanel.vue'
+import { useProfileStore } from '../stores/profile'
+import { useFollowStore } from '../stores/follow'
 import type { ReportView } from '../api/report'
 import {
   REASON_MAX_LENGTH,
@@ -66,6 +69,23 @@ const toast = ref('')
 let toastTimer: ReturnType<typeof setTimeout> | null = null
 const isStructuredReport = computed(() => (draft.value?.report.reportKind ?? 'STRUCTURED') === 'STRUCTURED')
 const reportVisits = ref<ReportVisit[]>([])
+const profileStore = useProfileStore()
+const followStore = useFollowStore()
+const profileId = computed(() => draft.value?.report.profileId ?? profileStore.profile?.id ?? null)
+// 临时指标面板：只在已确认的结构化报告、且不在修改模式时出现（FR-009）
+const showTempPanel = computed(
+  () => confirmed.value && isStructuredReport.value && !revising.value && profileId.value !== null,
+)
+
+async function onTempMetricCreated() {
+  // 重新拉取草稿视图，让行状态显示为“临时指标 · 已关注”
+  try {
+    const view = await ocrApi.draft(reportId)
+    if (draft.value) draft.value = { ...draft.value, observations: view.observations }
+  } catch {
+    // 忽略：提示已在面板中显示，刷新失败不影响结果
+  }
+}
 const visitsError = ref('')
 
 async function loadVisits() {
@@ -109,6 +129,7 @@ async function load() {
     loadError.value = ''
     if (confirmed.value && isStructuredReport.value && !revisionsLoaded.value) void loadRevisions()
     if (confirmed.value) void loadVisits()
+    if (confirmed.value && profileId.value !== null) void followStore.load(profileId.value).catch(() => undefined)
   } catch (error) {
     loadError.value = errorMessage(error, '报告加载失败，请稍后刷新')
   } finally {
@@ -631,6 +652,13 @@ onBeforeUnmount(() => {
           <p v-if="message" class="notice notice-error" role="alert">{{ message }}</p>
         </section>
       </div>
+
+      <TempMetricPanel
+        v-if="showTempPanel && draft && profileId !== null"
+        :profile-id="profileId"
+        :observations="draft.observations"
+        @created="onTempMetricCreated"
+      />
 
       <section v-if="confirmed" class="home-card" aria-labelledby="report-visits-title" data-testid="report-visits">
         <h2 id="report-visits-title">关联就诊</h2>

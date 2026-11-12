@@ -84,8 +84,8 @@ class FollowWebTest {
     @Test
     void listReturnsOrderedMetrics() throws Exception {
         given(followService.list(7, 11)).willReturn(List.of(
-                new FollowedMetricView("WBC", "白细胞计数", 0),
-                new FollowedMetricView("HGB", "血红蛋白", 1)));
+                new FollowedMetricView("WBC", "白细胞计数", 0, "10^9/L", false),
+                new FollowedMetricView("HGB", "血红蛋白", 1, "10^9/L", false)));
         mvc.perform(get(PATH).with(account(7)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].metricCode").value("WBC"))
@@ -132,8 +132,8 @@ class FollowWebTest {
     @Test
     void replaceReturnsNewList() throws Exception {
         given(followService.replace(7, 11, List.of("HGB", "WBC"))).willReturn(List.of(
-                new FollowedMetricView("HGB", "血红蛋白", 0),
-                new FollowedMetricView("WBC", "白细胞计数", 1)));
+                new FollowedMetricView("HGB", "血红蛋白", 0, "10^9/L", false),
+                new FollowedMetricView("WBC", "白细胞计数", 1, "10^9/L", false)));
         MockHttpSession session = new MockHttpSession();
         String token = csrfToken(session);
         mvc.perform(post(PATH).session(session).header("X-CSRF-TOKEN", token).with(account(7))

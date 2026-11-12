@@ -3,6 +3,7 @@
 // 指标较多时提供搜索过滤；选择顺序即图表/表格的展示顺序。
 import { computed, ref } from 'vue'
 import type { MetricSummary } from '../../api/trend'
+import { isTempMetricCode } from '../../api/tempMetric'
 
 const props = withDefaults(
   defineProps<{
@@ -76,7 +77,8 @@ function unitOf(m: MetricSummary): string {
         <span class="chip-check" aria-hidden="true">{{ isSelected(m.code) ? '✓' : '+' }}</span>
         <span class="chip-name">{{ m.standardName }}</span>
         <span class="chip-meta">{{ unitOf(m) }} · {{ m.count }} 次</span>
-        <span v-if="!m.standard" class="chip-badge">未标准化</span>
+        <span v-if="isTempMetricCode(m.code)" class="chip-badge" data-testid="chip-temp">临时指标</span>
+        <span v-else-if="!m.standard" class="chip-badge">未标准化</span>
       </button>
       <p v-if="visible.length === 0" class="field-hint">没有匹配的指标。</p>
     </div>

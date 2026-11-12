@@ -5,7 +5,9 @@ import com.healthtrace.common.web.ErrorCode;
 import com.healthtrace.common.web.FieldErrorItem;
 import com.healthtrace.indicator.domain.FollowPolicy;
 import com.healthtrace.indicator.domain.MetricDefinition;
+import com.healthtrace.indicator.domain.TempMetric;
 import com.healthtrace.indicator.mapper.FollowedMetricMapper;
+import com.healthtrace.indicator.mapper.TempMetricMapper;
 import com.healthtrace.indicator.mapper.TrendMapper;
 import com.healthtrace.indicator.service.FollowViews.FollowedMetricView;
 import com.healthtrace.indicator.service.FollowViews.MetricDefinitionView;
@@ -27,7 +29,7 @@ import java.util.Set;
  * <ul>
  *   <li>档案无 ACTIVE 授权时统一 404 HT-3001，不泄露存在性。</li>
  *   <li>保存时提交完整有序列表，整表替换（删除后按下标重插），批量关注、取消关注与拖拽排序共用一个入口。</li>
- *   <li>只能关注标准字典中的指标；空列表合法（全部取消关注）。</li>
+ *   <li>可关注标准字典中的指标与本档案的临时指标（"TMP:{id}"，他档案的临时指标视为未知）；空列表合法（全部取消关注）。</li>
  * </ul>
  */
 @Service
@@ -37,14 +39,17 @@ public class FollowService {
 
     private final FollowedMetricMapper followedMetricMapper;
     private final TrendMapper trendMapper;
+    private final TempMetricMapper tempMetricMapper;
     private final ProfileMapper profileMapper;
     private final AuditService auditService;
     private final Clock clock;
 
     public FollowService(FollowedMetricMapper followedMetricMapper, TrendMapper trendMapper,
-                         ProfileMapper profileMapper, AuditService auditService, Clock clock) {
+                         TempMetricMapper tempMetricMapper, ProfileMapper profileMapper,
+                         AuditService auditService, Clock clock) {
         this.followedMetricMapper = followedMetricMapper;
         this.trendMapper = trendMapper;
+        this.tempMetricMapper = tempMetricMapper;
         this.profileMapper = profileMapper;
         this.auditService = auditService;
         this.clock = clock;
@@ -64,7 +69,7 @@ public class FollowService {
     @Transactional
     public List<FollowedMetricView> replace(long accountId, long profileId, List<String> metricCodes) {
         requireProfileAccess(accountId, profileId);
-        validate(metricCodes);
+        validate(profileId, metricCodes);
 
         followedMetricMapper.deleteByProfile(profileId);
         if (!metricCodes.isEmpty()) {
@@ -75,7 +80,7 @@ public class FollowService {
         return followedMetricMapper.findByProfile(profileId).stream().map(FollowedMetricView::from).toList();
     }
 
-    private void validate(List<String> metricCodes) {
+    private void validate(long profileId, List<String> metricCodes) {
         if (metricCodes == null) {
             throw validation("NotNull", "请提交关注指标列表");
         }
@@ -85,6 +90,9 @@ public class FollowService {
         Set<String> known = new HashSet<>();
         for (MetricDefinition definition : trendMapper.findAllDefinitions()) {
             known.add(definition.getCode());
+        }
+        for (TempMetric temp : tempMetricMapper.findKeysByProfile(profileId)) {
+            known.add(TrendService.tempCode(temp.getId()));
         }
         Set<String> seen = new HashSet<>();
         for (String code : metricCodes) {

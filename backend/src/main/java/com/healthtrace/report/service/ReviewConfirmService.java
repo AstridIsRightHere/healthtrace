@@ -3,6 +3,8 @@ package com.healthtrace.report.service;
 import com.healthtrace.common.web.ApiException;
 import com.healthtrace.common.web.ErrorCode;
 import com.healthtrace.common.web.FieldErrorItem;
+import com.healthtrace.indicator.service.TempMetricService;
+import com.healthtrace.indicator.service.TrendService;
 import com.healthtrace.report.domain.Observation;
 import com.healthtrace.report.domain.ObservationStatus;
 import com.healthtrace.report.domain.OcrJob;
@@ -66,11 +68,13 @@ public class ReviewConfirmService {
     private final ObservationMapper observationMapper;
     private final OcrTextCipher cipher;
     private final AuditService auditService;
+    private final TempMetricService tempMetricService;
     private final Clock clock;
 
     public ReviewConfirmService(ReportAccess access, ReportMapper reportMapper, PhotoMapper photoMapper,
                                 OcrJobMapper ocrJobMapper, ObservationMapper observationMapper,
-                                OcrTextCipher cipher, AuditService auditService, Clock clock) {
+                                OcrTextCipher cipher, AuditService auditService,
+                                TempMetricService tempMetricService, Clock clock) {
         this.access = access;
         this.reportMapper = reportMapper;
         this.photoMapper = photoMapper;
@@ -78,6 +82,7 @@ public class ReviewConfirmService {
         this.observationMapper = observationMapper;
         this.cipher = cipher;
         this.auditService = auditService;
+        this.tempMetricService = tempMetricService;
         this.clock = clock;
     }
 
@@ -172,6 +177,8 @@ public class ReviewConfirmService {
         observationMapper.confirmDrafts(reportId, command.examinationDate(), now);
         // 按 V5 字典别名为正式结果写入标准指标；未命中的保持为空，不进入趋势（FR-008/010）
         observationMapper.assignMetricDefinitions(reportId);
+        // 仍未映射的结果按“同名同单位”归入本档案已有的临时指标（FR-009，DEC-015）
+        tempMetricService.assignReport(report.getProfileId(), reportId);
         if (reportMapper.confirm(reportId, command.version(), command.examinationDate(), accountId, now) != 1) {
             throw new ApiException(ErrorCode.VERSION_CONFLICT);
         }
@@ -292,6 +299,8 @@ public class ReviewConfirmService {
     static ObservationView toObservationView(Observation o) {
         return new ObservationView(o.getId(), o.getOriginalName(), o.getOriginalValue(), o.getUnitText(),
                 o.getReferenceText(), o.getResultKind(), o.getAbnormalFlag(), o.getConfidence(),
-                o.getSourcePhotoId(), o.getRowOrder());
+                o.getSourcePhotoId(), o.getRowOrder(), o.getMetricCode(),
+                o.getTempMetricId() == null ? null : TrendService.tempCode(o.getTempMetricId()),
+                o.getTempMetricName());
     }
 }

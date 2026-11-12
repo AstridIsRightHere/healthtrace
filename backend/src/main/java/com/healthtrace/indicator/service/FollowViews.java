@@ -9,11 +9,15 @@ public final class FollowViews {
     private FollowViews() {
     }
 
-    /** 关注指标：code、字典标准名称、从 0 开始的展示顺序。 */
-    public record FollowedMetricView(String metricCode, String name, int sortOrder) {
+    /**
+     * 关注指标：code（标准指标 code 或临时指标 "TMP:{id}"）、名称、单位、从 0 开始的展示顺序。
+     * unit 对标准指标为字典标准单位，对临时指标为其单位写法（无单位为 null）；temporary 标记临时指标。
+     */
+    public record FollowedMetricView(String metricCode, String name, int sortOrder, String unit, boolean temporary) {
 
         static FollowedMetricView from(FollowedMetric row) {
-            return new FollowedMetricView(row.getMetricCode(), row.getStandardName(), row.getSortOrder());
+            return new FollowedMetricView(row.getMetricCode(), row.getStandardName(), row.getSortOrder(),
+                    row.getUnit(), row.getTempMetricId() != null);
         }
     }
 

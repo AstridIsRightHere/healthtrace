@@ -81,6 +81,29 @@ async function confirmDelete() {
   }
 }
 
+/** 正在移入回收站的报告 id；同一时间只处理一份，避免重复点击 */
+const removingId = ref<number | null>(null)
+const removeNotice = ref('')
+
+// 移入回收站（FR-016）：可在“我的 → 回收站”恢复，不删除文件
+async function moveToRecycleBin(report: ReportListItem) {
+  if (removingId.value !== null) return
+  removingId.value = report.id
+  message.value = ''
+  removeNotice.value = ''
+  try {
+    await reportApi.listRemove(report.id)
+    reports.value = reports.value.filter((r) => r.id !== report.id)
+    total.value = Math.max(0, total.value - 1)
+    removeNotice.value = `已将“${title(report)}”移入回收站，可在“我的 → 回收站”恢复。`
+    if (total.value > reports.value.length) void loadDrafts()
+  } catch (error) {
+    message.value = errorMessage(error, '移入回收站失败，请稍后重试')
+  } finally {
+    removingId.value = null
+  }
+}
+
 async function loadDrafts() {
   try {
     const page = await reportApi.listDrafts(props.profileId, HOME_LIMIT)
@@ -103,6 +126,10 @@ onMounted(() => loadDrafts())
       <h2 id="pending-title">待处理报告</h2>
       <span v-if="total" class="pending-badge" data-testid="pending-count">{{ total }} 份待处理</span>
     </div>
+    <p v-if="removeNotice" class="notice notice-success" role="status" data-testid="pending-removed">
+      {{ removeNotice }}
+      <RouterLink :to="{ name: 'recycle-bin' }">查看回收站</RouterLink>
+    </p>
     <p v-if="loading" class="field-hint" role="status">加载中…</p>
     <p v-else-if="message" class="notice notice-error" role="alert">{{ message }}</p>
     <p v-else-if="reports.length === 0" class="field-hint">还没有待处理的报告，点击右下角“上传报告”开始。</p>
@@ -135,6 +162,17 @@ onMounted(() => loadDrafts())
         >
           {{ actionText(report.processingStatus) }}
         </RouterLink>
+        <!-- 移入回收站可恢复；任何状态均可（FR-016） -->
+        <button
+          type="button"
+          class="btn-ghost btn-small"
+          :aria-label="`移入回收站：${title(report)}`"
+          :disabled="removingId === report.id"
+          data-testid="pending-list-remove"
+          @click="moveToRecycleBin(report)"
+        >
+          {{ removingId === report.id ? '移入中…' : '移入回收站' }}
+        </button>
         <!-- 任何状态均可彻底删除（FR-016）；识别中的任务随报告一并清除 -->
         <button
           type="button"

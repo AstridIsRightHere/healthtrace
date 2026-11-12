@@ -31,6 +31,11 @@
         DELETE FROM followed_metric WHERE profile_id = #{profileId}
     </delete>
 
+    <!-- 须在报告（结果行）与关注删除之后执行：observation / followed_metric 外键引用 temp_metric -->
+    <delete id="deleteTempMetricsByProfile">
+        DELETE FROM temp_metric WHERE profile_id = #{profileId}
+    </delete>
+
     <delete id="deleteConsentsByProfile">
         DELETE FROM consent_record WHERE profile_id = #{profileId}
     </delete>

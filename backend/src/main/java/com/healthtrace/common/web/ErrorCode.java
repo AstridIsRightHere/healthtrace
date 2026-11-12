@@ -38,6 +38,8 @@ public enum ErrorCode {
     PROFILE_NOT_FOUND(HttpStatus.NOT_FOUND, "HT-3001", "档案不存在", false),
     /** 报告/图片不存在或无权访问：与档案同码，统一 404 不泄露存在性。 */
     RESOURCE_NOT_FOUND(HttpStatus.NOT_FOUND, "HT-3001", "资源不存在", false),
+    /** 临时指标不存在或不属于该档案：与档案同码，统一 404 不泄露存在性（FR-009）。 */
+    TEMP_METRIC_NOT_FOUND(HttpStatus.NOT_FOUND, "HT-3001", "临时指标不存在", false),
 
     /** 乐观锁版本不一致：报告已被其他操作修改。 */
     VERSION_CONFLICT(HttpStatus.CONFLICT, "HT-3002", "内容已被修改，请刷新后重试", false),

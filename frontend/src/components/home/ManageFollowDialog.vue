@@ -2,8 +2,9 @@
 // “管理关注”弹窗（FR-009）：勾选关注项、上下移动或拖动排序，一次保存完整有序列表。
 import { computed, nextTick, onMounted, ref } from 'vue'
 import { followedMetricApi, type MetricDefinitionOption } from '../../api/followedMetric'
+import { tempMetricApi, type TempMetric } from '../../api/tempMetric'
 
-const props = defineProps<{ initialCodes: string[]; saving: boolean; error: string }>()
+const props = defineProps<{ initialCodes: string[]; saving: boolean; error: string; profileId?: number | null }>()
 const emit = defineEmits<{ save: [codes: string[]]; cancel: [] }>()
 
 const dialog = ref<HTMLDialogElement | null>(null)
@@ -12,12 +13,28 @@ const loadState = ref<'loading' | 'ready' | 'error'>('loading')
 const selected = ref<string[]>([...props.initialCodes])
 const dragIndex = ref<number | null>(null)
 
-const nameOf = computed(() => new Map(definitions.value.map((d) => [d.code, d.name])))
+/** 本档案的临时指标（FR-009）；加载失败时只显示标准指标，不阻断管理 */
+const tempMetrics = ref<TempMetric[]>([])
+
+const nameOf = computed(
+  () =>
+    new Map([
+      ...definitions.value.map((d) => [d.code, d.name] as [string, string]),
+      ...tempMetrics.value.map((m) => [m.code, m.name] as [string, string]),
+    ]),
+)
 
 async function loadDefinitions(): Promise<void> {
   loadState.value = 'loading'
   try {
-    definitions.value = await followedMetricApi.definitions()
+    const [defs, temps] = await Promise.all([
+      followedMetricApi.definitions(),
+      props.profileId
+        ? tempMetricApi.list(props.profileId).catch(() => [] as TempMetric[])
+        : Promise.resolve([] as TempMetric[]),
+    ])
+    definitions.value = defs
+    tempMetrics.value = temps
     loadState.value = 'ready'
   } catch {
     loadState.value = 'error'
@@ -113,6 +130,19 @@ function onDrop(index: number): void {
             @change="toggle(d.code, ($event.target as HTMLInputElement).checked)"
           />
           {{ d.name }}
+        </label>
+      </fieldset>
+      <fieldset v-if="tempMetrics.length" class="follow-manage-options" data-testid="follow-manage-temp">
+        <legend class="field-hint">本档案的临时指标</legend>
+        <label v-for="m in tempMetrics" :key="m.code">
+          <input
+            type="checkbox"
+            :value="m.code"
+            :checked="selected.includes(m.code)"
+            :data-code="m.code"
+            @change="toggle(m.code, ($event.target as HTMLInputElement).checked)"
+          />
+          {{ m.name }}<span class="temp-metric-tag">临时</span>
         </label>
       </fieldset>
     </template>

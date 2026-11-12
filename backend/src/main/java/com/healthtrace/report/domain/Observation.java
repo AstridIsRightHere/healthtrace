@@ -33,6 +33,11 @@ public class Observation {
     /** 使本行失效（SUPERSEDED / RETRACTED）的修改记录。 */
     private Long retiredRevisionId;
     private LocalDateTime retiredAt;
+    /** 只读：映射的标准指标 code（findByReport 填充，不参与写入）。 */
+    private String metricCode;
+    /** 只读：映射的临时指标（FR-009；findByReport 填充，不参与写入）。 */
+    private Long tempMetricId;
+    private String tempMetricName;
 
     public Long getId() {
         return id;
@@ -216,5 +221,29 @@ public class Observation {
 
     public void setRetiredAt(LocalDateTime retiredAt) {
         this.retiredAt = retiredAt;
+    }
+
+    public String getMetricCode() {
+        return metricCode;
+    }
+
+    public void setMetricCode(String metricCode) {
+        this.metricCode = metricCode;
+    }
+
+    public Long getTempMetricId() {
+        return tempMetricId;
+    }
+
+    public void setTempMetricId(Long tempMetricId) {
+        this.tempMetricId = tempMetricId;
+    }
+
+    public String getTempMetricName() {
+        return tempMetricName;
+    }
+
+    public void setTempMetricName(String tempMetricName) {
+        this.tempMetricName = tempMetricName;
     }
 }

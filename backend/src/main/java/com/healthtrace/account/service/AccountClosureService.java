@@ -91,6 +91,7 @@ public class AccountClosureService {
         }
         removed += closureMapper.deleteVisitsByProfile(profileId);
         removed += closureMapper.deleteFollowedMetricsByProfile(profileId);
+        removed += closureMapper.deleteTempMetricsByProfile(profileId);
         removed += closureMapper.deleteConsentsByProfile(profileId);
         removed += closureMapper.deleteAccessByProfile(profileId);
         removed += closureMapper.deleteProfile(profileId);

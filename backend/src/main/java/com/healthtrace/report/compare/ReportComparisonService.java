@@ -105,7 +105,7 @@ public class ReportComparisonService {
         TrendObservation b = baseRows == null ? null : baseRows.get(0);
         TrendObservation t = targetRows == null ? null : targetRows.get(0);
         TrendObservation any = b != null ? b : t;
-        boolean standard = !key.startsWith(TrendService.RAW_PREFIX);
+        boolean standard = !key.startsWith(TrendService.RAW_PREFIX) && !key.startsWith(TrendService.TEMP_PREFIX);
         String name = standard && definition != null ? definition.getStandardName()
                 : TrendService.displayName(any.getOriginalName());
 

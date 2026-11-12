@@ -41,6 +41,11 @@ export interface ObservationView {
   confidence: number | null
   sourcePhotoId: number | null
   rowOrder: number
+  /** 已映射的标准指标编码；未映射为 null（FR-008） */
+  metricCode?: string | null
+  /** 已归入的临时指标编码 "TMP:{id}"；未归入为 null（FR-009） */
+  tempMetricCode?: string | null
+  tempMetricName?: string | null
 }
 
 export interface DraftView {

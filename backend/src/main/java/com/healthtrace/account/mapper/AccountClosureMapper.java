@@ -30,6 +30,9 @@ public interface AccountClosureMapper {
 
     int deleteFollowedMetricsByProfile(@Param("profileId") long profileId);
 
+    /** 本档案临时指标（FR-009）：须在结果行与关注删除之后。 */
+    int deleteTempMetricsByProfile(@Param("profileId") long profileId);
+
     int deleteConsentsByProfile(@Param("profileId") long profileId);
 
     int deleteAccessByProfile(@Param("profileId") long profileId);

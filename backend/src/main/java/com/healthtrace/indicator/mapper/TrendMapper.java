@@ -2,6 +2,7 @@ package com.healthtrace.indicator.mapper;
 
 import com.healthtrace.indicator.domain.MetricAggregate;
 import com.healthtrace.indicator.domain.MetricDefinition;
+import com.healthtrace.indicator.domain.TempMetric;
 import com.healthtrace.indicator.domain.TrendObservation;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
@@ -57,4 +58,12 @@ public interface TrendMapper {
     List<TrendObservation> findRecentExactByMetrics(@Param("profileId") long profileId,
                                                     @Param("metricDefinitionIds") Collection<Long> metricDefinitionIds,
                                                     @Param("to") LocalDate to);
+
+    /** 本档案的全部临时指标（按 id 升序），不带计数。 */
+    List<TempMetric> findTempMetricsByProfile(@Param("profileId") long profileId);
+
+    /** 映射到指定临时指标（须属于该档案，由调用方保证）的正式结果，截至 to（含）；行带 TMP:{id} 形式的 metricCode。 */
+    List<TrendObservation> findFormalByTempMetrics(@Param("profileId") long profileId,
+                                                   @Param("tempMetricIds") Collection<Long> tempMetricIds,
+                                                   @Param("to") LocalDate to);
 }

@@ -73,6 +73,7 @@ class MysqlIntegrationTest {
         registry.add("healthtrace.security.email-index-key",
                 () -> "ZmVkY2JhOTg3NjU0MzIxMGZlZGNiYTk4NzY1NDMyMTA=");
         registry.add("healthtrace.storage.local.root", () -> storageRoot.toString());
+        registry.add("healthtrace.storage.encryption-key", () -> "c3RvcmFnZS1maWxlLWtleS0wMTIzNDU2Nzg5YWJjZGU=");
         registry.add("healthtrace.ocr.encryption-key", () -> "YWJjZGVmMDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODk=");
         registry.add("healthtrace.ocr.baidu.api-key", () -> "test-api-key");
         registry.add("healthtrace.ocr.baidu.secret-key", () -> "test-secret-key");
@@ -277,6 +278,18 @@ class MysqlIntegrationTest {
                 .extracting(FollowedMetric::getMetricCode)
                 .containsExactlyElementsOf(FollowPolicy.DEFAULT_CODES)
                 .containsExactly("WBC", "HGB", "PLT", "ALT", "AST", "CREA");
+    }
+
+    @Test
+    void chineseAndEmojiNicknameRoundTripsThroughMysql() {
+        long accountId = seedAccount();
+        // 4 字节 Emoji（含 ZWJ 组合）要求列与连接都是 utf8mb4
+        String nickname = "外婆🌸👨‍👩‍👧";
+        ProfileView view = profileService.createProfile(accountId, Relationship.OTHER, nickname, true);
+        assertThat(view.nickname()).isEqualTo(nickname);
+        assertThat(jdbc.queryForObject("SELECT nickname FROM patient_profile WHERE id = ?", String.class, view.id()))
+                .isEqualTo(nickname);
+        assertThat(profileService.getCurrentProfile(accountId).nickname()).isEqualTo(nickname);
     }
 
     @Test

@@ -1,0 +1,21 @@
+# Docker 构建上下文排除项：密钥、依赖、构建产物、本地数据都不能进入镜像
+.git
+.github
+.idea
+.vscode
+**/.env
+**/.env.*
+!**/.env.example
+!deploy/.env.prod.example
+deploy/mail.env
+deploy/certs
+deploy/backups
+**/node_modules
+**/target
+**/dist
+**/coverage
+**/*.log
+**/*.pem
+**/*.key
+docs
+raw

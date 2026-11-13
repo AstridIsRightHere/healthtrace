@@ -66,6 +66,7 @@ class ObservationRevisionIntegrationTest {
         registry.add("healthtrace.security.email-index-key",
                 () -> "ZmVkY2JhOTg3NjU0MzIxMGZlZGNiYTk4NzY1NDMyMTA=");
         registry.add("healthtrace.storage.local.root", () -> storageRoot.toString());
+        registry.add("healthtrace.storage.encryption-key", () -> "c3RvcmFnZS1maWxlLWtleS0wMTIzNDU2Nzg5YWJjZGU=");
         registry.add("healthtrace.ocr.encryption-key", () -> "YWJjZGVmMDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODk=");
         registry.add("healthtrace.ocr.baidu.api-key", () -> "test-api-key");
         registry.add("healthtrace.ocr.baidu.secret-key", () -> "test-secret-key");

@@ -1,0 +1,121 @@
+# HealthTrace 生产部署（单机 Docker Compose）：Nginx（HTTPS + 静态文件 + 反向代理）、后端、MySQL 8.4。
+# 用法见 deploy/README.md；一般通过 deploy/deploy.sh 调用：
+#   docker compose -f deploy/docker-compose.prod.yml --env-file deploy/.env.prod up -d --build
+# 只有 Nginx 暴露端口；后端与 MySQL 只在内部网络 backend-net 中可达。
+
+name: healthtrace
+
+services:
+  mysql:
+    image: mysql:8.4
+    restart: unless-stopped
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_0900_ai_ci
+      - --skip-name-resolve
+      - --innodb-buffer-pool-size=256M
+      - --max-connections=60
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?在 .env.prod 中设置 MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:?在 .env.prod 中设置 MYSQL_DATABASE}
+      MYSQL_USER: ${MYSQL_USER:?在 .env.prod 中设置 MYSQL_USER}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:?在 .env.prod 中设置 MYSQL_PASSWORD}
+      TZ: Asia/Shanghai
+    volumes:
+      - mysql-data:/var/lib/mysql
+    networks:
+      - backend-net
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -p\"$$MYSQL_ROOT_PASSWORD\" --silent"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+    mem_limit: 768m
+    logging: &default-logging
+      driver: json-file
+      options:
+        max-size: "20m"
+        max-file: "5"
+
+  backend:
+    build:
+      context: ..
+      dockerfile: deploy/backend.Dockerfile
+    image: healthtrace-backend:${HT_IMAGE_TAG:-latest}
+    restart: unless-stopped
+    # 邮件（SMTP）配置单独放在 deploy/mail.env（可选）：spring.mail.host 只要存在（即使为空）Boot 就会启用 SMTP，
+    # 所以不能在 environment 里写空默认值。未提供该文件时应用照常启动，发信接口返回 HT-5003。
+    env_file:
+      - path: ./mail.env
+        required: false
+    depends_on:
+      mysql:
+        condition: service_healthy
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+      # 生产差异直接用环境变量表达（.gitignore 有意忽略 application-prod.*）：
+      # 信任 Nginx 传入的 X-Forwarded-*，Secure Cookie 与重定向按外部 HTTPS 生成；错误响应不带堆栈/异常信息
+      SERVER_FORWARD_HEADERS_STRATEGY: native
+      SERVER_ERROR_INCLUDE_STACKTRACE: never
+      SERVER_ERROR_INCLUDE_MESSAGE: never
+      LOGGING_LEVEL_COM_HEALTHTRACE: info
+      DB_URL: jdbc:mysql://mysql:3306/${MYSQL_DATABASE}?useUnicode=true&characterEncoding=UTF-8&connectionTimeZone=UTC&forceConnectionTimeZoneToSession=true&sslMode=REQUIRED
+      DB_USERNAME: ${MYSQL_USER}
+      DB_PASSWORD: ${MYSQL_PASSWORD}
+      HT_EMAIL_ENCRYPTION_KEY: ${HT_EMAIL_ENCRYPTION_KEY:?在 .env.prod 中设置 HT_EMAIL_ENCRYPTION_KEY}
+      HT_EMAIL_INDEX_KEY: ${HT_EMAIL_INDEX_KEY:?在 .env.prod 中设置 HT_EMAIL_INDEX_KEY}
+      HT_STORAGE_TYPE: local
+      HT_STORAGE_LOCAL_ROOT: /data/storage
+      HT_STORAGE_ENCRYPTION_KEY: ${HT_STORAGE_ENCRYPTION_KEY:?在 .env.prod 中设置 HT_STORAGE_ENCRYPTION_KEY}
+      HT_OCR_ENCRYPTION_KEY: ${HT_OCR_ENCRYPTION_KEY:?在 .env.prod 中设置 HT_OCR_ENCRYPTION_KEY}
+      HT_BAIDU_OCR_API_KEY: ${HT_BAIDU_OCR_API_KEY:?在 .env.prod 中设置 HT_BAIDU_OCR_API_KEY}
+      HT_BAIDU_OCR_SECRET_KEY: ${HT_BAIDU_OCR_SECRET_KEY:?在 .env.prod 中设置 HT_BAIDU_OCR_SECRET_KEY}
+      JAVA_OPTS: ${JAVA_OPTS:--Xms128m -Xmx320m -XX:MaxMetaspaceSize=128m -XX:ReservedCodeCacheSize=48m -XX:MaxDirectMemorySize=32m -Xss512k -XX:+UseSerialGC -XX:+ExitOnOutOfMemoryError -Djava.io.tmpdir=/tmp/healthtrace -Dfile.encoding=UTF-8}
+      TZ: Asia/Shanghai
+    volumes:
+      # 照片原件（已做应用层 AES-256-GCM 加密，见 FileCipher）
+      - storage-data:/data/storage
+    networks:
+      - backend-net
+    # DEC-009 / 部署约束：后端容器内存上限 512 MiB
+    mem_limit: 512m
+    read_only: true
+    tmpfs:
+      - /tmp/healthtrace:size=128m,uid=10001,gid=10001
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    logging: *default-logging
+
+  nginx:
+    build:
+      context: ..
+      dockerfile: deploy/frontend.Dockerfile
+    image: healthtrace-nginx:${HT_IMAGE_TAG:-latest}
+    restart: unless-stopped
+    depends_on:
+      backend:
+        condition: service_healthy
+    ports:
+      - "${HT_HTTP_PORT:-80}:80"
+      - "${HT_HTTPS_PORT:-443}:443"
+    volumes:
+      - ${HT_CERT_DIR:-./certs}:/etc/nginx/certs:ro
+      - acme-webroot:/var/www/acme:ro
+    networks:
+      - backend-net
+    mem_limit: 128m
+    security_opt:
+      - no-new-privileges:true
+    logging: *default-logging
+
+volumes:
+  mysql-data:
+  storage-data:
+  acme-webroot:
+
+networks:
+  backend-net:
+    driver: bridge

@@ -72,7 +72,7 @@
 
 | 需求 | 实现位置 | 自动化测试 | 说明 |
 | --- | --- | --- | --- |
-| FR-009 关注排序与临时指标（部分） | V8 `followed_metric`、V13 `temp_metric`；`indicator/api/FollowController`、临时指标接口 `temporary-metrics`；前端 `stores/follow.ts`、`components/home/ManageFollowDialog.vue`、`components/review/TempMetricPanel.vue` | FollowWebTest、FollowServiceTest、MysqlIntegrationTest、FollowedMetrics.test.ts、tempMetric.test.ts、后端临时指标测试（见 PR）、E2E mvp-experience-e2e | 标准指标与本档临时指标关注、整表保存顺序、默认 6 项；核对页设为临时指标并关注，同名同单位自动归并；异名同单位强提示、手动合并/分开与撤销未实现 |
+| FR-009 关注排序与临时指标（部分） | V8 `followed_metric`、V13 `temp_metric`；`indicator/api/FollowController`、临时指标接口 `temporary-metrics`；前端 `stores/follow.ts`、`components/home/ManageFollowDialog.vue`（含临时指标取消关注/删除）、`components/review/TempMetricPanel.vue` | FollowWebTest、FollowServiceTest、MysqlIntegrationTest、FollowedMetrics.test.ts、tempMetric.test.ts、后端临时指标测试（见 PR）、E2E mvp-experience-e2e | 标准指标与本档临时指标关注、整表保存顺序、默认 6 项；核对页设为临时指标并关注，同名同单位自动归并；异名同单位强提示、手动合并/分开与撤销未实现 |
 | FR-012 首页 | `metric-summaries` 批量接口；`components/home/*` 分别加载 | TrendWebTest、TrendServiceTest、FollowedMetrics.test.ts | 关注卡单次批量请求（每次固定 2 条 SQL）；加载失败显示“加载失败，请点击重试”，不再吞错 |
 | NFR-001 权限隔离 | 各 Service 按账号校验档案归属，越权统一 404 HT-3001 | 各 *WebTest / *ServiceTest 越权用例 | 跨账号访问返回与不存在一致 |
 | NFR-005 性能 | 趋势查询 from/to 下界在 SQL 过滤；`/metrics` 用 GROUP BY 计数；报告与就诊列表 `limit` + `total` | MysqlIntegrationTest、ListPagingIntegrationTest（Testcontainers MySQL 8.4） | 首页 API 请求数从每卡一次趋势请求降为固定 6 个；尚无 DEC-009 阈值实测记录 |
@@ -90,6 +90,9 @@
 | FR-018 管理员 | — | — | 未实现 |
 | NFR-006 主题与字号（部分） | `utils/appearance.ts`（html `data-theme` / `data-font-size`，localStorage `ht.theme`、`ht.fontSize`）；`DisplaySettingsView`；style.css 全站 rem 与深色变量 | appearance.test.ts、E2E mvp-experience-e2e（390/1280） | 跟随系统/浅色/深色与 14/16/20/24 px 已实现；VoiceOver/TalkBack 真机测试未做 |
 | PWA（技术基线） | vite-plugin-pwa（generateSW，`registerType: prompt`）；`utils/pwa.ts`、`utils/installPrompt.ts`、`PwaPrompt.vue` | installPrompt.test.ts、构建产物 sw.js 检查、E2E manifest 检查 | 只预缓存静态资源；`/api/` 排除于导航回退且无运行时缓存，医疗数据不进缓存 |
+| NFR-003 文件加密 | `common/security/FileCipher`（AES-256-GCM 分段流式，AAD 绑定对象路径）、`storage/LocalStorageService` 写前加密/读时解密、启动时遗留明文就地加密 | FileCipherTest、LocalStorageServiceTest、各 Testcontainers 集成测试、E2E 检查落盘为 HTE1 密文且原图可解密 | 密钥 `HT_STORAGE_ENCRYPTION_KEY`；暂不支持轮换 |
+| FR-003 中文/Emoji 昵称 | `GlobalExceptionHandler` 区分非 UTF-8 请求体；utf8mb4 全链路 | ProfileWebTest（Emoji 与 GBK 请求体）、MysqlIntegrationTest 中文 Emoji 往返、E2E 浏览器建档 | 2026-11-13 排查：400 由 Windows curl 以 GBK 发送请求体造成，应用本身正确 |
+| 部署（docs/17） | `deploy/`：docker-compose.prod.yml、backend/frontend Dockerfile、nginx.conf、deploy.sh、backup.sh | compose config、镜像构建、`nginx -t`、本机全栈冒烟 15 项与浏览器 E2E | 未在真实服务器演练 |
 | PG-013 隐私与 OCR 说明 | `PrivacyPolicyView`（/privacy）、`DataAuthorizationView`（/data-authorization），我的页入口 | E2E mvp-experience-e2e | 文本为开发阶段草稿，上线前需合规审阅（docs/10） |
 
 ## 状态与变更规则

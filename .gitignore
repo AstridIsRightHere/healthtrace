@@ -84,6 +84,11 @@ temp/
 .env.*
 # 模板文件只含变量名，需要提交
 !.env.example
+!deploy/.env.prod.example
+# 部署机上的本地文件：邮件凭据、证书、备份
+deploy/mail.env
+deploy/certs/
+deploy/backups/
 
 # Credentials / keys / sensitive filenames
 .ssh/

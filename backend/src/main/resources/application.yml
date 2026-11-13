@@ -59,6 +59,8 @@ healthtrace:
   # 原图存储：local 仅用于开发/测试；根目录只从环境变量注入，缺失时启动失败
   storage:
     type: ${HT_STORAGE_TYPE:local}
+    # 照片等文件的应用层加密密钥（AES-256-GCM，32 字节 Base64），与邮箱/OCR 密钥不同；缺失时启动失败
+    encryption-key: ${HT_STORAGE_ENCRYPTION_KEY}
     local:
       root: ${HT_STORAGE_LOCAL_ROOT}
   # OCR（ADR-004）：原文加密密钥与百度凭据只从环境变量注入，任一缺失时启动失败；日志不得输出凭据

@@ -53,10 +53,32 @@ public class GlobalExceptionHandler {
         return respond(code, code.defaultMessage(), items, request);
     }
 
+    /**
+     * 请求体无法解析。请求体字节不是合法 UTF-8 时（典型如 Windows 命令行工具按 GBK 发送中文）
+     * 单独给出编码提示，便于客户端排查；仍是 HT-1002，不回显请求内容。
+     */
     @ExceptionHandler(HttpMessageNotReadableException.class)
     public ResponseEntity<ProblemDetail> handleUnreadable(HttpMessageNotReadableException ex,
                                                           HttpServletRequest request) {
+        if (isInvalidUtf8(ex)) {
+            return respond(ErrorCode.MALFORMED_REQUEST, INVALID_UTF8_DETAIL, List.of(), request);
+        }
         return respond(ErrorCode.MALFORMED_REQUEST, request);
+    }
+
+    static final String INVALID_UTF8_DETAIL = "请求格式无效：请求体不是有效的 UTF-8 编码";
+
+    static boolean isInvalidUtf8(Throwable ex) {
+        for (Throwable t = ex; t != null; t = t.getCause() == t ? null : t.getCause()) {
+            if (t instanceof java.io.CharConversionException) {
+                return true;
+            }
+            String message = t.getMessage();
+            if (message != null && message.contains("Invalid UTF-8")) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**

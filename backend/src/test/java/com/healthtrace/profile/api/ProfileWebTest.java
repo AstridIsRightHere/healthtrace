@@ -143,6 +143,35 @@ class ProfileWebTest {
     }
 
     @Test
+    void chineseAndEmojiNicknameReachServiceIntact() throws Exception {
+        String nickname = "张三🙂家👨‍👩‍👧";
+        given(profileService.createProfile(7L, Relationship.SELF, nickname, true)).willReturn(view());
+        MockHttpSession session = new MockHttpSession();
+        String token = csrfToken(session);
+        byte[] body = ("{\"relationship\":\"SELF\",\"nickname\":\"" + nickname + "\",\"authorizationDeclared\":true}")
+                .getBytes(java.nio.charset.StandardCharsets.UTF_8);
+        mvc.perform(post("/api/v1/patient-profiles").with(account(7L)).session(session)
+                        .header("X-CSRF-TOKEN", token).contentType(JSON).content(body))
+                .andExpect(status().isCreated());
+        verify(profileService).createProfile(7L, Relationship.SELF, nickname, true);
+    }
+
+    @Test
+    void nonUtf8BodyIsRejectedWithEncodingHint() throws Exception {
+        MockHttpSession session = new MockHttpSession();
+        String token = csrfToken(session);
+        // GBK 编码的“张三”：Windows 命令行未按 UTF-8 发送时的真实字节
+        byte[] gbk = "{\"relationship\":\"SELF\",\"nickname\":\"张三\",\"authorizationDeclared\":true}"
+                .getBytes(java.nio.charset.Charset.forName("GBK"));
+        mvc.perform(post("/api/v1/patient-profiles").with(account(7L)).session(session)
+                        .header("X-CSRF-TOKEN", token).contentType(JSON).content(gbk))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("HT-1002"))
+                .andExpect(jsonPath("$.detail").value("请求格式无效：请求体不是有效的 UTF-8 编码"));
+        verify(profileService, never()).createProfile(anyLong(), any(), any(), anyBoolean());
+    }
+
+    @Test
     void unknownRelationshipIsMalformed() throws Exception {
         MockHttpSession session = new MockHttpSession();
         String token = csrfToken(session);

@@ -1,11 +1,15 @@
 <script setup lang="ts">
 // “管理关注”弹窗（FR-009）：勾选关注项、上下移动或拖动排序，一次保存完整有序列表。
 import { computed, nextTick, onMounted, ref } from 'vue'
+import { errorMessage } from '../../api'
 import { followedMetricApi, type MetricDefinitionOption } from '../../api/followedMetric'
-import { tempMetricApi, type TempMetric } from '../../api/tempMetric'
+import { parseTempMetricId, tempMetricApi, type TempMetric } from '../../api/tempMetric'
+import { useFollowStore } from '../../stores/follow'
 
 const props = defineProps<{ initialCodes: string[]; saving: boolean; error: string; profileId?: number | null }>()
 const emit = defineEmits<{ save: [codes: string[]]; cancel: [] }>()
+
+const follow = useFollowStore()
 
 const dialog = ref<HTMLDialogElement | null>(null)
 const definitions = ref<MetricDefinitionOption[]>([])
@@ -71,6 +75,37 @@ function onDrop(index: number): void {
   if (dragIndex.value !== null) move(dragIndex.value, index)
   dragIndex.value = null
 }
+
+/** 临时指标删除：先二次确认；删除后从列表与已选中移除，并刷新关注数据 */
+const confirmingDelete = ref<string | null>(null)
+const deleting = ref(false)
+const tempNotice = ref('')
+const tempError = ref('')
+
+function askDelete(code: string): void {
+  tempNotice.value = ''
+  tempError.value = ''
+  confirmingDelete.value = code
+}
+
+async function confirmDelete(m: TempMetric): Promise<void> {
+  const id = parseTempMetricId(m.code)
+  if (id === null || !props.profileId || deleting.value) return
+  deleting.value = true
+  tempError.value = ''
+  try {
+    await tempMetricApi.remove(props.profileId, id)
+    tempMetrics.value = tempMetrics.value.filter((t) => t.code !== m.code)
+    selected.value = selected.value.filter((c) => c !== m.code)
+    confirmingDelete.value = null
+    tempNotice.value = `已删除临时指标“${m.name}”，相关结果仍保留在原报告中。`
+    await follow.load(props.profileId, true).catch(() => undefined)
+  } catch (e) {
+    tempError.value = errorMessage(e, '删除失败，请稍后重试')
+  } finally {
+    deleting.value = false
+  }
+}
 </script>
 
 <template>
@@ -132,19 +167,52 @@ function onDrop(index: number): void {
           {{ d.name }}
         </label>
       </fieldset>
-      <fieldset v-if="tempMetrics.length" class="follow-manage-options" data-testid="follow-manage-temp">
+      <fieldset v-if="tempMetrics.length" class="follow-temp-list" data-testid="follow-manage-temp">
         <legend class="field-hint">本档案的临时指标</legend>
-        <label v-for="m in tempMetrics" :key="m.code">
-          <input
-            type="checkbox"
-            :value="m.code"
-            :checked="selected.includes(m.code)"
-            :data-code="m.code"
-            @change="toggle(m.code, ($event.target as HTMLInputElement).checked)"
-          />
-          {{ m.name }}<span class="temp-metric-tag">临时</span>
-        </label>
+        <div v-for="m in tempMetrics" :key="m.code" class="follow-temp-row" data-testid="follow-temp-row">
+          <label class="follow-temp-label">
+            <input
+              type="checkbox"
+              :value="m.code"
+              :checked="selected.includes(m.code)"
+              :data-code="m.code"
+              @change="toggle(m.code, ($event.target as HTMLInputElement).checked)"
+            />
+            <span class="follow-temp-name">{{ m.name }}<span class="temp-metric-tag">临时</span></span>
+            <span class="follow-temp-state">{{ selected.includes(m.code) ? '已关注' : '未关注' }}</span>
+          </label>
+          <button
+            v-if="confirmingDelete !== m.code"
+            class="btn-secondary btn-danger-outline follow-temp-delete"
+            type="button"
+            data-testid="follow-temp-delete"
+            :aria-label="`删除临时指标 ${m.name}`"
+            :disabled="deleting"
+            @click="askDelete(m.code)"
+          >删除</button>
+          <div v-else class="follow-temp-confirm" role="alert">
+            <p>删除“{{ m.name }}”后会同时取消关注，相关结果回到“未归类”状态；报告和结果本身不会删除。</p>
+            <div class="follow-temp-confirm-actions">
+              <button
+                class="btn-secondary"
+                type="button"
+                data-testid="follow-temp-delete-cancel"
+                :disabled="deleting"
+                @click="confirmingDelete = null"
+              >保留</button>
+              <button
+                class="btn-primary btn-danger"
+                type="button"
+                data-testid="follow-temp-delete-confirm"
+                :disabled="deleting"
+                @click="confirmDelete(m)"
+              >{{ deleting ? '删除中…' : '确认删除' }}</button>
+            </div>
+          </div>
+        </div>
       </fieldset>
+      <p v-if="tempNotice" class="notice" role="status" data-testid="follow-temp-notice">{{ tempNotice }}</p>
+      <p v-if="tempError" class="notice notice-error" role="alert">{{ tempError }}</p>
     </template>
 
     <p v-if="error" class="notice notice-error" role="alert">{{ error }}</p>

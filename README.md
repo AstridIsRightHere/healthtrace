@@ -17,8 +17,10 @@
 - 修改留痕与审计：报告修改与指标级历史、审计事件（FR-014、NFR-010）
 - 删除：列表移除与回收站（首页待处理与报告详情均可移入）、彻底删除与删除账本（FR-016）
 - 应用导航：移动端底部 4 Tab（首页/档案/时间线/我的），桌面端（≥960px）左侧侧边栏
+- 数据安全：照片与 PDF 写盘前 AES-256-GCM 加密（FileCipher，密钥 `HT_STORAGE_ENCRYPTION_KEY`），存储目录中只有密文；中文与 Emoji 昵称全链路 utf8mb4
+- 生产部署：`deploy/` 下的 Docker Compose（Nginx HTTPS 反代 + 后端 + MySQL）、多阶段镜像、部署与备份脚本，见 [deploy/README.md](deploy/README.md)
 
-MVP 尚未完成：DEC-015 异名同单位强提示与手动归并/撤销（FR-009）、人工撤回授权渠道（FR-017）、管理员字典/邀请码维护（FR-018）、读屏真机测试（NFR-006）；以及部署、备份恢复、供应商合同等上线前置条件。见 [版本路线图](docs/21-版本路线图.md) 第 7 节。34 份编号文档（00～29、31～34）及文档索引覆盖需求、设计、工程规划、进度报告和论文草稿。
+MVP 尚未完成：DEC-015 异名同单位强提示与手动归并/撤销（FR-009）、人工撤回授权渠道（FR-017）、管理员字典/邀请码维护（FR-018）、读屏真机测试（NFR-006）；以及真实服务器部署演练、备份恢复演练、供应商合同等上线前置条件。见 [版本路线图](docs/21-版本路线图.md) 第 7 节。34 份编号文档（00～29、31～34）及文档索引覆盖需求、设计、工程规划、进度报告和论文草稿。
 
 docs/ 下的部分文档写于 Git 初始化或编码授权之前，其中“尚未初始化 Git”“不创建工程”等描述保留为编写时的历史状态。
 
@@ -32,6 +34,7 @@ healthtrace/
 ├── frontend/                # Vue 3.5 + TypeScript 6.0 + Vite 8 + Pinia 4 + Vue Router 5 + ECharts 6.1
 ├── backend/                 # Spring Boot 4.1 模块化单体（account/profile/report/indicator/visit/rights）
 ├── .github/workflows/       # CI：PR 时运行后端测试与前端 lint/测试/构建
+├── deploy/                  # 生产部署：Compose、Dockerfile、Nginx、deploy.sh、backup.sh
 ├── start-dev.ps1            # 本地启动后端（读取 .env，dev profile）
 ├── start-frontend.ps1       # 本地启动前端 Vite 开发服务器
 ├── docker-compose.yml       # 本地 MySQL 8.4 LTS
@@ -103,7 +106,7 @@ healthtrace/
 | 数据库 | MySQL 8.4.13；Flyway 12（当前迁移至 V13） |
 | 图表与数据访问 | ECharts 6.1.0（按需引入）；MyBatis 3.5 |
 | OCR 与文件存储 | 百度医疗检验报告单识别（可替换适配器），识别原文 AES-GCM 加密；开发期本地存储；OCR 结果需人工逐项确认 |
-| 交付 | GitHub Actions CI（PR 检查）；发布流程与部署方式待定 |
+| 交付 | GitHub Actions CI（PR 检查）；单机 Docker Compose 部署（`deploy/`，尚未在真实服务器演练） |
 
 详细理由、替代方案与待确认事项见 [技术选型建议](docs/13-技术选型建议.md)。
 

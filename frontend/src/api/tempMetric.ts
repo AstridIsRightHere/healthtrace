@@ -7,6 +7,15 @@ export function isTempMetricCode(code: string): boolean {
   return code.startsWith(TEMP_METRIC_PREFIX)
 }
 
+/** "TMP:12" → 12；不是合法临时指标编码时返回 null */
+export function parseTempMetricId(code: string): number | null {
+  if (!isTempMetricCode(code)) return null
+  const raw = code.slice(TEMP_METRIC_PREFIX.length)
+  if (!/^[1-9]\d*$/.test(raw)) return null
+  const id = Number(raw)
+  return Number.isSafeInteger(id) ? id : null
+}
+
 /** 对应后端 TempMetricView */
 export interface TempMetric {
   code: string
@@ -29,4 +38,11 @@ export const tempMetricApi = {
     api
       .post<TempMetric>(`/patient-profiles/${profileId}/temporary-metrics`, { observationId, follow })
       .then((res) => res.data),
+
+  /**
+   * DELETE /api/v1/patient-profiles/{profileId}/temporary-metrics/{tempMetricId}
+   * 删除临时指标：同时取消关注，关联的结果回到“未标准化”，报告与结果本身不删除。
+   */
+  remove: (profileId: number, tempMetricId: number) =>
+    api.delete<void>(`/patient-profiles/${profileId}/temporary-metrics/${tempMetricId}`).then(() => undefined),
 }

@@ -50,12 +50,13 @@ const backText = computed(() => (auth.isAuthenticated ? '← 返回我的' : '�
           <li><strong>邮箱</strong>：使用 AES-256-GCM 加密存储，检索时使用单向哈希索引，数据库中不出现明文邮箱。</li>
           <li><strong>密码</strong>：使用 BCrypt 单向哈希保存，登录失败多次会临时锁定。</li>
           <li><strong>识别原文</strong>：第三方识别返回的原始文字与结构化结果使用 AES-256-GCM 加密存储；修改留痕中的修改前后内容同样加密。</li>
+          <li><strong>报告照片与 PDF</strong>：写入服务器磁盘前使用 AES-256-GCM 加密，每个文件绑定自己的存储位置，单独拷走文件或挪到别处都无法解密；只有在您本人查看时才在服务器内存中解密。</li>
           <li><strong>访问控制</strong>：每次访问报告、照片、就诊等资料都会核对是否属于您的档案；不属于您的资料一律当作“不存在”处理。</li>
           <li><strong>登录状态</strong>：使用 HttpOnly 会话 Cookie 并启用 CSRF 防护，网页脚本无法读取登录凭据。</li>
           <li><strong>本机缓存</strong>：安装到主屏幕后，手机只缓存页面程序文件，<strong>不缓存任何报告、照片或检查数值</strong>，离线时无法查看健康数据。</li>
         </ul>
         <p class="field-hint">
-          说明：试用阶段报告原件存放在服务器本地磁盘，依靠服务器访问控制保护，暂未做文件级加密；加密备份方案（DEC-003）待确定。
+          说明：加密密钥与数据分开保管；加密备份与恢复方案（DEC-003）仍待确定。
         </p>
       </section>
 

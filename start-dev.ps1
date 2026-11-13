@@ -54,7 +54,7 @@ if ($env:SPRING_PROFILES_ACTIVE -ne 'dev') {
 $required = @(
     'DB_URL', 'DB_USERNAME', 'DB_PASSWORD',
     'HT_EMAIL_ENCRYPTION_KEY', 'HT_EMAIL_INDEX_KEY',
-    'HT_STORAGE_LOCAL_ROOT',
+    'HT_STORAGE_LOCAL_ROOT', 'HT_STORAGE_ENCRYPTION_KEY',
     'HT_OCR_ENCRYPTION_KEY', 'HT_BAIDU_OCR_API_KEY', 'HT_BAIDU_OCR_SECRET_KEY'
 )
 $missing = $required | Where-Object { [string]::IsNullOrEmpty([Environment]::GetEnvironmentVariable($_, 'Process')) }

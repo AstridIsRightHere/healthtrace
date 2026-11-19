@@ -3,14 +3,14 @@
 <mapper namespace="com.healthtrace.account.mapper.AccountMapper">
 
     <sql id="columns">
-        id, email_ciphertext, email_index, password_hash, email_verified_at, status, closed_at,
+        id, email_ciphertext, email_index, password_hash, email_verified_at, status, role, closed_at,
         failed_login_count, locked_until, created_at, updated_at
     </sql>
 
     <insert id="insert" useGeneratedKeys="true" keyProperty="id" keyColumn="id">
-        INSERT INTO account (email_ciphertext, email_index, password_hash, email_verified_at, status, closed_at,
+        INSERT INTO account (email_ciphertext, email_index, password_hash, email_verified_at, status, role, closed_at,
                              failed_login_count, locked_until, created_at, updated_at)
-        VALUES (#{emailCiphertext}, #{emailIndex}, #{passwordHash}, #{emailVerifiedAt}, #{status}, #{closedAt},
+        VALUES (#{emailCiphertext}, #{emailIndex}, #{passwordHash}, #{emailVerifiedAt}, #{status}, #{role}, #{closedAt},
                 #{failedLoginCount}, #{lockedUntil}, #{createdAt}, #{updatedAt})
     </insert>
 

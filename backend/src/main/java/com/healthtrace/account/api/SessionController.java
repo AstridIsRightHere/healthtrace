@@ -16,6 +16,7 @@ import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContext;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.web.context.SecurityContextRepository;
@@ -74,8 +75,10 @@ public class SessionController {
         csrfTokenRepository.saveToken(null, httpRequest, httpResponse);
         httpRequest.getSession().setAttribute(SessionAbsoluteTimeoutFilter.LOGIN_AT_ATTRIBUTE, clock.instant());
 
+        // FR-018：管理员获得 ROLE_ADMIN 权限
+        var authorities = List.of(new SimpleGrantedAuthority("ROLE_" + principal.role().name()));
         SecurityContext context = SecurityContextHolder.createEmptyContext();
-        context.setAuthentication(UsernamePasswordAuthenticationToken.authenticated(principal, null, List.of()));
+        context.setAuthentication(UsernamePasswordAuthenticationToken.authenticated(principal, null, authorities));
         SecurityContextHolder.setContext(context);
         securityContextRepository.saveContext(context, httpRequest, httpResponse);
 

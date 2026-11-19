@@ -2,6 +2,7 @@ package com.healthtrace.report.api;
 
 import com.healthtrace.account.api.CsrfController;
 import com.healthtrace.account.domain.AccountPrincipal;
+import com.healthtrace.account.domain.AccountRole;
 import com.healthtrace.common.ClockConfig;
 import com.healthtrace.common.security.SecurityConfig;
 import com.healthtrace.common.web.ApiException;
@@ -82,7 +83,7 @@ class ReportRevisionWebTest {
     private ReportRevisionService revisionService;
 
     private static RequestPostProcessor account(long id) {
-        return authentication(new UsernamePasswordAuthenticationToken(new AccountPrincipal(id), null, List.of()));
+        return authentication(new UsernamePasswordAuthenticationToken(new AccountPrincipal(id, AccountRole.USER), null, List.of()));
     }
 
     private String csrfToken(MockHttpSession session) throws Exception {

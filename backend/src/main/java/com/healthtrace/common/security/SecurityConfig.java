@@ -36,6 +36,7 @@ public class SecurityConfig {
                                                    CsrfTokenRepository csrfTokenRepository,
                                                    SecurityContextRepository securityContextRepository,
                                                    ErrorResponseWriter errorWriter,
+                                                   AdminContentAccessFilter adminContentAccessFilter,
                                                    Clock clock) throws Exception {
         http
                 .authorizeHttpRequests(auth -> auth
@@ -49,6 +50,8 @@ public class SecurityConfig {
                         // OpenAPI 文档：仅 dev 启用（application-dev.yml），其余 profile 关闭后这些路径为 404
                         .requestMatchers(HttpMethod.GET, "/swagger-ui.html", "/swagger-ui/**",
                                 "/v3/api-docs", "/v3/api-docs/**").permitAll()
+                        // 管理员路径：需要 ADMIN 角色（FR-018）
+                        .requestMatchers("/api/v1/admin/**").hasAuthority("ROLE_ADMIN")
                         // 其余接口（含 GET /api/v1/accounts/me、POST /api/v1/email-verifications 重发验证邮件）需登录
                         .anyRequest().authenticated())
                 .csrf(csrf -> csrf
@@ -61,6 +64,7 @@ public class SecurityConfig {
                         // 登录接口里手动轮换会话 ID，这里关闭默认策略避免重复处理
                         .sessionFixation(fixation -> fixation.none()))
                 .addFilterBefore(new SessionAbsoluteTimeoutFilter(clock), SecurityContextHolderFilter.class)
+                .addFilterAfter(adminContentAccessFilter, SecurityContextHolderFilter.class)
                 .exceptionHandling(ex -> ex
                         .authenticationEntryPoint((req, res, e) -> errorWriter.write(req, res, ErrorCode.UNAUTHENTICATED))
                         .accessDeniedHandler((req, res, e) -> errorWriter.write(req, res,

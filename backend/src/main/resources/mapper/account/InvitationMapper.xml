@@ -14,4 +14,21 @@
           AND used_at IS NULL
           AND (expires_at IS NULL OR expires_at &gt; #{now})
     </update>
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO invitation (issuer_account_id, token_digest, expires_at, created_at, updated_at)
+        VALUES (#{issuerAccountId}, #{tokenDigest}, #{expiresAt}, UTC_TIMESTAMP(), UTC_TIMESTAMP())
+    </insert>
+
+    <select id="findAll" resultType="com.healthtrace.account.domain.Invitation">
+        SELECT id, issuer_account_id, token_digest, expires_at, used_at, used_by, created_at, updated_at
+        FROM invitation
+        ORDER BY created_at DESC
+    </select>
+
+    <update id="setExpiresAt">
+        UPDATE invitation
+        SET expires_at = #{expiresAt}, updated_at = #{expiresAt}
+        WHERE id = #{id}
+    </update>
 </mapper>

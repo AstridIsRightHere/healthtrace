@@ -2,6 +2,7 @@ package com.healthtrace.common.web;
 
 import com.healthtrace.account.api.CsrfController;
 import com.healthtrace.account.domain.AccountPrincipal;
+import com.healthtrace.account.domain.AccountRole;
 import com.healthtrace.common.ClockConfig;
 import com.healthtrace.common.security.SecurityConfig;
 import org.junit.jupiter.api.Test;
@@ -76,7 +77,7 @@ class ErrorHandlingWebTest {
     enum Mode { FAST, SLOW }
 
     private static RequestPostProcessor account(long id) {
-        return authentication(new UsernamePasswordAuthenticationToken(new AccountPrincipal(id), null, List.of()));
+        return authentication(new UsernamePasswordAuthenticationToken(new AccountPrincipal(id, AccountRole.USER), null, List.of()));
     }
 
     private void assertTraceIdMatches(MvcResult result) throws Exception {

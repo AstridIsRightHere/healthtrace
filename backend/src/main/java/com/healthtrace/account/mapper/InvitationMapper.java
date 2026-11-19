@@ -5,6 +5,7 @@ import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 /**
  * INVITATION 表访问。邀请码的签发属于受控人工流程（docs/08 设计边界），这里只提供检索与消耗。
@@ -20,4 +21,19 @@ public interface InvitationMapper {
     int markUsed(@Param("id") long id,
                  @Param("usedBy") long usedBy,
                  @Param("now") LocalDateTime now);
+
+    /**
+     * 插入新邀请码（管理员生成，FR-018）。
+     */
+    void insert(Invitation invitation);
+
+    /**
+     * 列出所有邀请码（管理员查看，FR-018）。
+     */
+    List<Invitation> findAll();
+
+    /**
+     * 禁用邀请码（管理员操作，FR-018）：将过期时间设为指定时刻。
+     */
+    void setExpiresAt(@Param("id") long id, @Param("expiresAt") LocalDateTime expiresAt);
 }

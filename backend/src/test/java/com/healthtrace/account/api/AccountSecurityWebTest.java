@@ -1,6 +1,7 @@
 package com.healthtrace.account.api;
 
 import com.healthtrace.account.domain.AccountPrincipal;
+import com.healthtrace.account.domain.AccountRole;
 import com.healthtrace.account.domain.AccountStatus;
 import com.healthtrace.account.service.AccountService;
 import com.healthtrace.account.service.AccountView;
@@ -155,7 +156,7 @@ class AccountSecurityWebTest {
     @Test
     void loginThenMeThenLogout() throws Exception {
         given(accountService.authenticate("a@example.com", "correct horse battery"))
-                .willReturn(new AccountPrincipal(7L));
+                .willReturn(new AccountPrincipal(7L, AccountRole.USER));
         AccountView view = new AccountView(7L, "a@example.com", true, AccountStatus.ACTIVE);
         given(accountService.getAccount(7L)).willReturn(view);
 

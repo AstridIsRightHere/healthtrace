@@ -13,6 +13,8 @@ declare module 'vue-router' {
     allowWithoutProfile?: boolean
     /** 所属一级导航 Tab（见 utils/navigation.ts），用于底部栏/侧边栏高亮 */
     tab?: 'home' | 'records' | 'timeline' | 'me'
+    /** 仅管理员可访问 */
+    requireAdmin?: boolean
   }
 }
 
@@ -50,6 +52,12 @@ const router = createRouter({
           name: 'display-settings',
           component: () => import('../views/DisplaySettingsView.vue'),
           meta: { tab: 'me', allowWithoutProfile: true },
+        },
+        {
+          path: 'admin',
+          name: 'admin',
+          component: () => import('../views/AdminView.vue'),
+          meta: { allowWithoutProfile: true, requireAdmin: true },
         },
       ],
     },
@@ -108,10 +116,11 @@ const router = createRouter({
 })
 
 /**
- * 路由守卫（US-003）：
+ * 路由守卫（US-003 + FR-018）：
  * 1. 未登录只能访问 public 页面（/login、/register、/verify）；
  * 2. 已登录但未建档：除 public 页外一律引导到 /profile/new；
- * 3. 已建档再访问 /profile/new 回到首页。
+ * 3. 已建档再访问 /profile/new 回到首页；
+ * 4. requireAdmin 页面仅管理员可访问，普通用户返回首页。
  */
 router.beforeEach(async (to) => {
   const auth = useAuthStore(pinia)
@@ -125,6 +134,11 @@ router.beforeEach(async (to) => {
     return { name: 'home' }
   }
   if (to.meta.public) return true
+
+  // FR-018: 管理员权限检查
+  if (to.meta.requireAdmin && auth.user?.role !== 'ADMIN') {
+    return { name: 'home' }
+  }
 
   const profile = useProfileStore(pinia)
   try {

@@ -148,7 +148,7 @@ public class AccountService {
             throw new ApiException(ErrorCode.BAD_CREDENTIALS);
         }
         accountMapper.resetLoginFailures(account.getId(), now);
-        return new AccountPrincipal(account.getId());
+        return new AccountPrincipal(account.getId(), account.getRole());
     }
 
     /**

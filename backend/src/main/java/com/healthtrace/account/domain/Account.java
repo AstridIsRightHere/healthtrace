@@ -14,6 +14,7 @@ public class Account {
     private String passwordHash;
     private LocalDateTime emailVerifiedAt;
     private AccountStatus status;
+    private AccountRole role;
     private LocalDateTime closedAt;
     private int failedLoginCount;
     private LocalDateTime lockedUntil;
@@ -87,6 +88,14 @@ public class Account {
 
     public void setStatus(AccountStatus status) {
         this.status = status;
+    }
+
+    public AccountRole getRole() {
+        return role;
+    }
+
+    public void setRole(AccountRole role) {
+        this.role = role;
     }
 
     public LocalDateTime getClosedAt() {

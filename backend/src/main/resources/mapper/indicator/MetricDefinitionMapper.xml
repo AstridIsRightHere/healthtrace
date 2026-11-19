@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.healthtrace.indicator.mapper.MetricDefinitionMapper">
+
+    <sql id="definitionColumns">
+        id, code, dictionary_id, national_code, standard_name, standard_unit, report_type, comparability_note,
+        dictionary_version, sort_order
+    </sql>
+
+    <select id="findAll" resultType="com.healthtrace.indicator.domain.MetricDefinition">
+        SELECT <include refid="definitionColumns"/> FROM metric_definition ORDER BY sort_order, id
+    </select>
+
+    <select id="findByCode" resultType="com.healthtrace.indicator.domain.MetricDefinition">
+        SELECT <include refid="definitionColumns"/> FROM metric_definition WHERE code = #{code}
+    </select>
+
+    <select id="findAliasesByCode" resultType="com.healthtrace.indicator.domain.MetricAlias">
+        SELECT a.id, a.metric_definition_id, a.alias, a.alias_normalized, a.required_unit
+        FROM metric_alias a
+        JOIN metric_definition d ON d.id = a.metric_definition_id
+        WHERE d.code = #{code}
+        ORDER BY a.id
+    </select>
+</mapper>

@@ -1,6 +1,7 @@
 import { api } from './index'
 
 export type AccountStatus = 'UNVERIFIED' | 'ACTIVE' | 'FROZEN' | 'CLOSING' | 'CLOSED'
+export type AccountRole = 'USER' | 'ADMIN'
 
 /** 对应后端 AccountView */
 export interface AccountView {
@@ -8,6 +9,7 @@ export interface AccountView {
   email: string
   emailVerified: boolean
   status: AccountStatus
+  role: AccountRole
 }
 
 export interface RegisterPayload {
